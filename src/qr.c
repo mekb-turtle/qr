@@ -323,11 +323,11 @@ bool qr_encode(struct qr *qr, const void *data, size_t len, int encoding, unsign
 	memset(qr->output.data, 0, qr->output.data_size);
 
 	// start writing modules
-	(void)data;
-	(void)len;
-	(void)encoding;
-	(void)module_size;
-	(void)quiet_zone;
+	(void) data;
+	(void) len;
+	(void) encoding;
+	(void) module_size;
+	(void) quiet_zone;
 
 	return false;
 }

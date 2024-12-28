@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include "../src/utf8.h"
+#include "test.h"
+
 int main() {
 	struct {
 		char *utf8;
@@ -24,17 +26,12 @@ int main() {
 	for (int i = 0; str[i].utf8; i++) {
 		uint32_t actual, expected = str[i].codepoint;
 		if (!(read_utf8((uint8_t *) str[i].utf8, &actual))) {
-			printf("Error: read_utf8(\"%s\") failed, expected 0x%X\n", str[i].utf8, expected);
+			FAIL_VAL("read_utf8(\"%s\")", expected, FMT_HEX, str[i].utf8);
 			ret = 1;
 			continue;
 		}
-		if (actual != expected) {
-			printf("Error: read_utf8(\"%s\") = 0x%X, expected 0x%X\n",
-			       str[i].utf8, actual, expected);
-			ret = 1;
-			continue;
-		}
-		printf("read_utf8(\"%s\") = 0x%X\n", str[i].utf8, actual);
+
+		ASSERT(actual, ==, expected, FMT_HEX, ret = 1);
 	}
 	return ret;
 }

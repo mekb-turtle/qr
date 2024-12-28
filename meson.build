@@ -7,13 +7,14 @@ main_name = 'qr'
 
 # define source files
 src_main = files('src'/'main.c') # excluded for tests
-src = files('src'/'qr.c', 'src'/'qr.h', 'src'/'utf8.c', 'src'/'utf8.h', 'src'/'arg.c', 'src'/'arg.h', 'src'/'output.c', 'src'/'output.h')
+src = files('src'/'qr.c', 'src'/'qr.h', 'src'/'utf8.c', 'src'/'utf8.h', 'src'/'arg.c', 'src'/'arg.h', 'src'/'output.c', 'src'/'output.h', 'src'/'util.c', 'src'/'util.h')
 src_test = files() # included for tests only
 
 # define test files, these get compiled separately
 tests = [
   { 'files': files('test'/'utf8.c') },
   { 'files': files('test'/'utf8fail.c'), 'should_fail': true },
+  { 'files': files('test'/'bit_append.c') },
 ]
 
 # add custom binary/text files to be compiled into the binary

@@ -22,17 +22,17 @@ int main(int argc, char *argv[]) {
 
 	// argument handling
 	while ((opt = getopt_long(argc, argv, ":hVf:B:F:q:m:o:e:v:E:", (struct option[]){
-	                                                     {"help",       no_argument,       0, 'h'},
-	                                                     {"format",     required_argument, 0, 'f'},
-	                                                     {"background", required_argument, 0, 'B'},
-	                                                     {"foreground", required_argument, 0, 'F'},
-	                                                     {"quiet",      required_argument, 0, 'q'},
-	                                                     {"module",     required_argument, 0, 'm'},
-	                                                     {"output",     required_argument, 0, 'o'},
-	                                                     {"ecl",        required_argument, 0, 'e'},
-	                                                     {"version",    required_argument, 0, 'v'},
-	                                                     {"encoding",   required_argument, 0, 'E'},
-	                                                     {0,            0,                 0, 0  }
+	                                                                       {"help",       no_argument,       0, 'h'},
+	                                                                       {"format",     required_argument, 0, 'f'},
+	                                                                       {"background", required_argument, 0, 'B'},
+	                                                                       {"foreground", required_argument, 0, 'F'},
+	                                                                       {"quiet",      required_argument, 0, 'q'},
+	                                                                       {"module",     required_argument, 0, 'm'},
+	                                                                       {"output",     required_argument, 0, 'o'},
+	                                                                       {"ecl",        required_argument, 0, 'e'},
+	                                                                       {"version",    required_argument, 0, 'v'},
+	                                                                       {"encoding",   required_argument, 0, 'E'},
+	                                                                       {0,            0,                 0, 0  }
     },
 	                          NULL)) != -1) {
 		switch (opt) {
