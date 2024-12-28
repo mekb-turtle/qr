@@ -2,11 +2,7 @@
 #include <string.h>
 #include <iconv.h>
 #include "utf8.h"
-
-// add bits to data buffer
-static bool add_bits(uint8_t **data, size_t *len, size_t *index_byte, uint8_t *index_bit, uint32_t value, uint8_t bits) {
-	//TODO
-}
+#include "util.h"
 
 #define FREE(ptr)                    \
 	{                                \
@@ -148,7 +144,7 @@ bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data_, enum 
 	size_t index_byte = 0;
 	uint8_t index_bit = 0;
 
-#define ADD_BITS(value, bits) add_bits(&new_data, &new_data_len, &index_byte, &index_bit, value, bits)
+#define ADD_BITS(value, bits) add_bits(new_data, new_data_len, &index_byte, &index_bit, value, bits)
 
 	// TODO: auto detect version to use
 	if (version == 0) version = 40;
@@ -177,7 +173,7 @@ bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data_, enum 
 
 	new_data = qr->alloc.malloc(new_data_len);
 	if (!new_data) return false;
-	
+
 	// add mode indicator
 	if (!ADD_BITS(encoding, 4)) {
 	discard_data:
@@ -327,7 +323,11 @@ bool qr_encode(struct qr *qr, const void *data, size_t len, int encoding, unsign
 	memset(qr->output.data, 0, qr->output.data_size);
 
 	// start writing modules
-	// TODO
+	(void)data;
+	(void)len;
+	(void)encoding;
+	(void)module_size;
+	(void)quiet_zone;
 
 	return false;
 }
