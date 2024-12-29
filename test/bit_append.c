@@ -3,23 +3,6 @@
 #include "../src/util.h"
 #include "test.h"
 
-static bool check_index_byte(size_t actual, size_t expected) {
-	ASSERT(actual, ==, expected, FMT_INT, return false);
-	return true;
-}
-
-static bool check_index_bit(uint8_t actual, uint8_t expected) {
-	ASSERT(actual, ==, expected, FMT_INT, return false);
-	return true;
-}
-
-static bool check_bytes(uint8_t *actual, uint8_t *expected, size_t len) {
-	for (size_t i = 0; i < len; i++) {
-		ASSERT(actual[i], ==, expected[i], FMT_HEX, return false);
-	}
-	return true;
-}
-
 static void print_bits(uint8_t *data, size_t len) {
 	for (size_t i = 0; i < len; i++) {
 		if (i > 0) printf(" ");
@@ -31,62 +14,64 @@ static void print_bits(uint8_t *data, size_t len) {
 	printf("\n");
 }
 
+static bool check_buf(struct bit_buffer buf, size_t expected_bit_count, uint8_t *expected_data, size_t len) {
+	print_bits(buf.data, 3);
+
+	bool ret = true;
+
+	ASSERT(buf.byte_index, ==, expected_bit_count / 8, FMT_INT, ret = false);
+	ASSERT(buf.bit_index, ==, expected_bit_count % 8, FMT_INT, ret = false);
+
+	for (size_t i = 0; i < len; i++) {
+		ASSERT(((uint8_t *) buf.data)[i], ==, expected_data[i], FMT_HEX, ret = false);
+	}
+
+	return ret;
+}
+
 int main() {
 	int ret = 0;
 
-	size_t len = 100;
-	uint8_t data[len];
-	memset(data, 0, len);
-
-	size_t index_byte = 0;
-	uint8_t index_bit = 0;
+	struct bit_buffer buf = {.size = 100, .byte_index = 0, .bit_index = 0};
+	uint8_t data_[buf.size];
+	buf.data = data_;
+	memset(buf.data, 0, buf.size);
 
 	uint32_t value = 0x35;
 	uint8_t bits = 7;
 
-	add_bits(data, len, &index_byte, &index_bit, value, bits);
+#define ADD_BITS                            \
+	{                                       \
+		if (!add_bits(&buf, value, bits)) { \
+			FAIL("add_bits");               \
+			ret = 1;                        \
+		}                                   \
+	}
 
-	print_bits(data, 3);
+	ADD_BITS;
 
-	if (!check_index_byte(index_byte, 0)) ret = 1;
-	if (!check_index_bit(index_bit, 7)) ret = 1;
-	if (!check_bytes(data, (uint8_t[]){0x6a, 0, 0}, 3)) ret = 1;
+	if (!check_buf(buf, 7, (uint8_t[]){0x6a, 0, 0}, 3)) ret = 1;
 
 	value = 0x55;
 	bits = 7;
 
-	add_bits(data, len, &index_byte, &index_bit, value, bits);
+	ADD_BITS;
 
-	print_bits(data, 3);
-
-	// 14 bits
-	if (!check_index_byte(index_byte, 1)) ret = 1;
-	if (!check_index_bit(index_bit, 6)) ret = 1;
-	if (!check_bytes(data, (uint8_t[]){0x6b, 0x54, 0}, 3)) ret = 1;
+	if (!check_buf(buf, 14, (uint8_t[]){0x6b, 0x54, 0}, 3)) ret = 1;
 
 	value = 0;
 	bits = 1;
 
-	add_bits(data, len, &index_byte, &index_bit, value, bits);
+	ADD_BITS;
 
-	print_bits(data, 3);
-
-	// 15 bits
-	if (!check_index_byte(index_byte, 1)) ret = 1;
-	if (!check_index_bit(index_bit, 7)) ret = 1;
-	if (!check_bytes(data, (uint8_t[]){0x6b, 0x54, 0}, 3)) ret = 1;
+	if (!check_buf(buf, 15, (uint8_t[]){0x6b, 0x54, 0}, 3)) ret = 1;
 
 	value = 1;
 	bits = 1;
 
-	add_bits(data, len, &index_byte, &index_bit, value, bits);
+	ADD_BITS;
 
-	print_bits(data, 3);
-
-	// 16 bits
-	if (!check_index_byte(index_byte, 2)) ret = 1;
-	if (!check_index_bit(index_bit, 0)) ret = 1;
-	if (!check_bytes(data, (uint8_t[]){0x6b, 0x55, 0}, 3)) ret = 1;
+	if (!check_buf(buf, 16, (uint8_t[]){0x6b, 0x55, 0}, 3)) ret = 1;
 
 	return ret;
 }

@@ -7,7 +7,7 @@ main_name = 'qr'
 
 # define source files
 src_main = files('src'/'main.c') # excluded for tests
-src = files('src'/'qr.c', 'src'/'qr.h', 'src'/'utf8.c', 'src'/'utf8.h', 'src'/'arg.c', 'src'/'arg.h', 'src'/'output.c', 'src'/'output.h', 'src'/'util.c', 'src'/'util.h')
+src = files('src'/'qr.c', 'src'/'qr.h', 'src'/'utf8.c', 'src'/'utf8.h', 'src'/'arg.c', 'src'/'arg.h', 'src'/'output.c', 'src'/'output.h', 'src'/'util.c', 'src'/'util.h', 'src'/'qr_table.c', 'src'/'qr_table.h')
 src_test = files() # included for tests only
 
 # define test files, these get compiled separately
@@ -15,6 +15,7 @@ tests = [
   { 'files': files('test'/'utf8.c') },
   { 'files': files('test'/'utf8fail.c'), 'should_fail': true },
   { 'files': files('test'/'bit_append.c') },
+  { 'files': files('test'/'bit_append_fail.c'), 'should_fail': true },
 ]
 
 # add custom binary/text files to be compiled into the binary
@@ -57,7 +58,7 @@ foreach test_ : tests
     test_name = test_['name'] # custom test name
   endif
 
-  test_exe = executable(test_name, sources: src + src_test + test_['files'], dependencies: dependencies)
+  test_exe = executable(test_name, sources: src + src_test + test_['files'], install: false, dependencies: dependencies)
 
   args = {}
   foreach key, val : test_

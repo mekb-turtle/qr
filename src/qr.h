@@ -3,8 +3,11 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "util.h"
 
 #define QR_MARGIN_DEFAULT (4)
+#define QR_MIN_VERSION (1)
+#define QR_MAX_VERSION (40)
 
 // allocator functions
 struct qr_alloc {
@@ -19,10 +22,10 @@ struct qr_alloc {
 struct qr {
 	// error correction level
 	enum qr_ecl {
-		ECL_LOW,
-		ECL_MEDIUM,
-		ECL_QUARTILE,
-		ECL_HIGH
+		ECL_LOW = 0,
+		ECL_MEDIUM = 1,
+		ECL_QUARTILE = 2,
+		ECL_HIGH = 3
 	} ecl;
 
 	// QR code encoding
@@ -30,15 +33,13 @@ struct qr {
 		ENC_AUTO = 0,
 		ENC_NUMERIC = 1,
 		ENC_ALPHANUMERIC = 2,
-		ENC_BYTE = 4,
-		ENC_KANJI = 8
+		ENC_BYTE = 3,
+		ENC_KANJI = 4
 	} encoding;
 
-	uint8_t version; // QR code version, 1-40, 0 for auto
+	uint8_t version; // QR code version, 1-40
 
-	const void *data; // data encoded in the QR code (w/o error correction)
-	size_t data_len;
-	uint8_t data_bit_index; // current bit index in the data
+	struct bit_buffer data; // data encoded in the QR code
 
 	size_t char_count; // number of characters in the data
 

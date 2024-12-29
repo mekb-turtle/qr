@@ -2,7 +2,6 @@
 #define TEST_H
 #include <stdio.h>
 #include <inttypes.h>
-#define eprintf(...) fprintf(stderr, __VA_ARGS__)
 #define STRINGIFY(x) #x
 #define TO_STRING(x) STRINGIFY(x)
 #define LOC (__FILE__ ":" TO_STRING(__LINE__) ": ")
@@ -11,27 +10,27 @@
 #define NUM(x) ((size_t) (x))
 
 // success messages
-#define SUCCESS(x, ...) printf("%sSuccess: " x "\n", LOC, __VA_ARGS__)
-#define EXPECTED_FAIL(x, ...) printf("%sExpected failure: " x "\n", LOC, __VA_ARGS__)
+#define SUCCESS(x, ...) printf("%sSuccess: " x "\n", LOC __VA_OPT__(, ) __VA_ARGS__)
+#define EXPECTED_FAIL(x, ...) printf("%sExpected failure: " x "\n", LOC __VA_OPT__(, ) __VA_ARGS__)
 
 // failure messages
-#define FAIL(x, ...) eprintf("%sFail: " x "\n", LOC, __VA_ARGS__)
-#define FAIL_VAL(x, y, format, ...) eprintf("%sFail: " x ", expected" format "\n", LOC, __VA_ARGS__, NUM(y))
-#define UNEXPECTED_PASS(x, ...) eprintf("%sUnexpected pass: " x "\n", LOC, __VA_ARGS__)
-#define UNEXPECTED_PASS_ACTUAL(x, y, format, ...) eprintf("%sUnexpected pass: " x ", got " format "\n", LOC, __VA_ARGS__, NUM(y))
+#define FAIL(x, ...) printf("%sFail: " x "\n", LOC __VA_OPT__(, ) __VA_ARGS__)
+#define FAIL_VAL(x, y, format, ...) printf("%sFail: " x ", expected" format "\n", LOC __VA_OPT__(, ) __VA_ARGS__, NUM(y))
+#define UNEXPECTED_PASS(x, ...) printf("%sUnexpected pass: " x "\n", LOC __VA_OPT__(, ) __VA_ARGS__)
+#define UNEXPECTED_PASS_ACTUAL(x, y, format, ...) printf("%sUnexpected pass: " x ", got " format "\n", LOC __VA_OPT__(, ) __VA_ARGS__, NUM(y))
 
 // prints error if operator does not hold true
 // cast to size_t to avoid format warnings
-#define ASSERT(actual, op, expected, format, failure)                            \
-	{                                                                            \
-		if (actual op expected) {                                                \
-			printf("%sAssertion passed: ", LOC);                                 \
-			printf(format " %s " format "\n", NUM(actual), #op, NUM(expected));  \
-		} else {                                                                 \
-			eprintf("%sAssertion failed: ", LOC);                                \
-			eprintf(format " %s " format "\n", NUM(actual), #op, NUM(expected)); \
-			failure;                                                             \
-		}                                                                        \
+#define ASSERT(actual, op, expected, format, failure)                           \
+	{                                                                           \
+		if (actual op expected) {                                               \
+			printf("%sAssertion passed: ", LOC);                                \
+			printf(format " %s " format "\n", NUM(actual), #op, NUM(expected)); \
+		} else {                                                                \
+			printf("%sAssertion failed: ", LOC);                                \
+			printf(format " %s " format "\n", NUM(actual), #op, NUM(expected)); \
+			failure;                                                            \
+		}                                                                       \
 	}
 
 // custom format specifiers

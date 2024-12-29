@@ -3,6 +3,7 @@
 #include <iconv.h>
 #include "utf8.h"
 #include "util.h"
+#include "qr_table.h"
 
 #define FREE(ptr)                    \
 	{                                \
@@ -12,31 +13,22 @@
 		ptr = NULL;                  \
 	}
 
-// pre-encoded data
-static bool qr_init_raw(struct qr *qr, struct qr_alloc alloc, const void *data, size_t len, enum qr_encoding encoding, unsigned int version, enum qr_ecl ecl) {
+static bool qr_post_encode(struct qr *qr);
+static bool qr_init_utf8_internal(struct qr *qr, const void *data_);
+
+static uint8_t encoding_bits[4] = {1, 2, 4, 8};
+
+bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum qr_encoding encoding, unsigned int version, enum qr_ecl ecl) {
 	if (!alloc.malloc) return false;
+	qr_close(qr);
 	qr->alloc = alloc;
-
-	if (!data || !len) return false;
-
-	// sanity checks
-	if (ecl != ECL_LOW && ecl != ECL_MEDIUM && ecl != ECL_QUARTILE && ecl != ECL_HIGH) return false;
-	if (version < 1 || version > 40) return false;
-	if (encoding != ENC_NUMERIC && encoding != ENC_ALPHANUMERIC && encoding != ENC_BYTE && encoding != ENC_KANJI) return false;
-
-	qr->data = data;
-	qr->data_len = len;
 	qr->encoding = encoding;
 	qr->version = version;
 	qr->ecl = ecl;
-
-	return true;
+	return qr_init_utf8_internal(qr, data);
 }
 
-bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data_, enum qr_encoding encoding, unsigned int version, enum qr_ecl ecl) {
-	if (!alloc.malloc) return false;
-	qr->alloc = alloc;
-
+static bool qr_init_utf8_internal(struct qr *qr, const void *data_) {
 	const uint8_t *data = data_;
 	if (!data_ || !*data) return false;
 
@@ -76,28 +68,33 @@ bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data_, enum 
 		return false;
 	} else {
 		// initialise variables for iconv
-		const uint8_t *data_ = data;
-		const uint8_t *kanji_data_ = kanji_data;
+		const uint8_t *data_tmp = data;
+		const uint8_t *kanji_data_tmp = kanji_data;
 		size_t in_size = num_bytes, out_size = kanji_size;
-		size_t iconv_ret = iconv(cd, (char **) &data_, &in_size, (char **) &kanji_data_, &out_size);
-		if (iconv_ret == (size_t) -1 || kanji_data_ < kanji_data) {
+		size_t iconv_ret = iconv(cd, (char **) &data_tmp, &in_size, (char **) &kanji_data_tmp, &out_size);
+		if (iconv_ret == (size_t) -1 || kanji_data_tmp < kanji_data) {
 			FREE(kanji_data);
 			kanji = false; // not possible
+		} else {
+			kanji_size = kanji_data_tmp - kanji_data; // iconv increments the pointer, so we can calculate the new size using this
+			if (qr->alloc.realloc)
+				kanji_data = qr->alloc.realloc(kanji_data, kanji_size); // shrink to fit
 		}
-		kanji_size = kanji_data_ - kanji_data; // iconv increments the pointer, so we can calculate the new size using this
-		if (qr->alloc.realloc)
-			kanji_data = qr->alloc.realloc(kanji_data, kanji_size); // shrink to fit
 	}
 	iconv_close(cd);
 
 	if (kanji) {
 		// verify the data is entirely double-byte
 		for (size_t i = 0; i < kanji_size; i += 2) {
+			// check first byte
 			if (kanji_data[i] < 0x81 || (kanji_data[i] > 0x9f && kanji_data[i] < 0xe0) || kanji_data[i] > 0xef) {
 			invalid_kanji:
+				FREE(kanji_data);
 				kanji = false;
 				break;
 			}
+
+			// check second byte
 			if ((kanji_data[i] & 1) == 0) { // even
 				if (kanji_data[i + 1] < 0x9f || kanji_data[i + 1] > 0xfc) goto invalid_kanji;
 			} else { // odd
@@ -108,74 +105,98 @@ bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data_, enum 
 
 	if (!byte && !kanji && !numeric && !alphanumeric) {
 		// no valid encoding found
-	invalid_encoding:
+	failure:
 		FREE(kanji_data);
 		return false;
 	}
+
 	// figure out what encoding to use
-	switch (encoding) {
+	switch (qr->encoding) {
 		case ENC_NUMERIC:
-			if (!numeric) goto invalid_encoding;
+			if (!numeric) goto failure;
 			break;
 		case ENC_ALPHANUMERIC:
-			if (!alphanumeric) goto invalid_encoding;
+			if (!alphanumeric) goto failure;
 			break;
 		case ENC_BYTE:
-			if (!byte) goto invalid_encoding;
+			if (!byte) goto failure;
 			break;
 		case ENC_KANJI:
-			if (!kanji) goto invalid_encoding;
+			if (!kanji) goto failure;
 			break;
 		default:
-			if (byte) encoding = ENC_BYTE;
-			if (kanji) encoding = ENC_KANJI;
-			if (alphanumeric) encoding = ENC_ALPHANUMERIC;
-			if (numeric) encoding = ENC_NUMERIC;
+			if (byte) qr->encoding = ENC_BYTE;
+			if (kanji) qr->encoding = ENC_KANJI;
+			if (alphanumeric) qr->encoding = ENC_ALPHANUMERIC;
+			if (numeric) qr->encoding = ENC_NUMERIC;
 			break;
 	}
 
-	if (encoding != ENC_KANJI) {
+	if (qr->encoding != ENC_KANJI) {
 		// free already allocated data
 		FREE(kanji_data);
 	}
 
-	size_t new_data_len = 1;
-	uint8_t *new_data;
-	size_t index_byte = 0;
-	uint8_t index_bit = 0;
+	struct bit_buffer *new_data = &qr->data; // short-hand
+	new_data->size = 1;
 
-#define ADD_BITS(value, bits) add_bits(new_data, new_data_len, &index_byte, &index_bit, value, bits)
-
-	// TODO: auto detect version to use
-	if (version == 0) version = 40;
-
-	uint8_t count_bits;
-	switch (encoding) {
+	uint8_t table_mode_index;
+	switch (qr->encoding) {
 		case ENC_NUMERIC:
-			new_data_len += (num_codepoints + 2) / 3 * 10;
-			count_bits = version < 10 ? 10 : (version < 27 ? 12 : 14);
+			table_mode_index = 0;
+			new_data->size += (num_codepoints + 2) / 3 * 10;
 			break;
 		case ENC_ALPHANUMERIC:
-			new_data_len += (num_codepoints + 1) / 2 * 11;
-			count_bits = version < 10 ? 9 : (version < 27 ? 11 : 13);
+			table_mode_index = 1;
+			new_data->size += (num_codepoints + 1) / 2 * 11;
 			break;
 		case ENC_BYTE:
-			new_data_len += num_codepoints;
-			count_bits = version < 10 ? 8 : 16;
+			table_mode_index = 2;
+			new_data->size += num_codepoints;
 			break;
 		case ENC_KANJI:
-			new_data_len += kanji_size / 2 * 13;
-			count_bits = version < 10 ? 8 : (version < 27 ? 10 : 12);
+			table_mode_index = 3;
+			new_data->size += kanji_size / 2 * 13;
 			break;
 		default:
 			return false;
 	}
 
-	new_data = qr->alloc.malloc(new_data_len);
-	if (!new_data) return false;
+	if (qr->version > QR_MAX_VERSION) goto failure; // returns false, but we need to free kanji_data first
+
+	// find the smallest version that can fit the data
+	while (qr->version < QR_MIN_VERSION || character_capacity[qr->ecl * QR_MAX_VERSION + (qr->version - 1)][table_mode_index] < new_data->size) {
+		++qr->version;
+		if (qr->version > QR_MAX_VERSION) goto failure;
+	}
+
+	// number of bits for character count indicator
+	uint8_t count_bits;
+	switch (qr->encoding) {
+		case ENC_NUMERIC:
+			count_bits = qr->version < 10 ? 10 : (qr->version < 27 ? 12 : 14);
+			break;
+		case ENC_ALPHANUMERIC:
+			count_bits = qr->version < 10 ? 9 : (qr->version < 27 ? 11 : 13);
+			break;
+		case ENC_BYTE:
+			count_bits = qr->version < 10 ? 8 : 16;
+			break;
+		case ENC_KANJI:
+			count_bits = qr->version < 10 ? 8 : (qr->version < 27 ? 10 : 12);
+			break;
+		default:
+			return false;
+	}
+
+	new_data->data = qr->alloc.malloc(new_data->size + 3);
+	if (!new_data->data) goto failure;
+
+		// helper macro to add bits to new_data
+#define ADD_BITS(value, bits) add_bits(new_data, value, bits)
 
 	// add mode indicator
-	if (!ADD_BITS(encoding, 4)) {
+	if (!ADD_BITS(encoding_bits[qr->encoding], 4)) {
 	discard_data:
 		FREE(new_data);
 		return false;
@@ -184,9 +205,8 @@ bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data_, enum 
 	// add character count indicator
 	if (!ADD_BITS(num_codepoints, count_bits)) goto discard_data;
 
-	switch (encoding) {
+	switch (qr->encoding) {
 		case ENC_NUMERIC:
-			// https://www.thonky.com/qr-code-tutorial/numeric-mode-encoding
 			for (size_t i = 0; data[i];) {
 				uint16_t value = 0;
 				uint8_t bytes;
@@ -201,7 +221,6 @@ bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data_, enum 
 			break;
 
 		case ENC_ALPHANUMERIC:
-			// https://www.thonky.com/qr-code-tutorial/alphanumeric-mode-encoding
 			for (size_t i = 0; data[i];) {
 				uint16_t value = 0;
 				uint8_t bytes;
@@ -222,7 +241,6 @@ bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data_, enum 
 			break;
 
 		case ENC_BYTE:
-			// https://www.thonky.com/qr-code-tutorial/byte-mode-encoding
 			for (size_t i = 0; data[i];) {
 				uint32_t codepoint;
 				uint8_t read = read_utf8(&data[i], &codepoint);
@@ -234,7 +252,6 @@ bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data_, enum 
 			break;
 
 		case ENC_KANJI:
-			// https://www.thonky.com/qr-code-tutorial/kanji-mode-encoding
 			for (size_t i = 0; kanji_data[i]; i += 2) {
 				uint16_t word = kanji_data[i] << 8 | kanji_data[i + 1];
 				if (word >= 0xc140)
@@ -250,7 +267,6 @@ bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data_, enum 
 				}
 			}
 			FREE(kanji_data);
-			// TODO
 			return false;
 			break;
 
@@ -263,7 +279,15 @@ bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data_, enum 
 	// TODO: add remainder bits
 	// TODO: render QR code
 
-	return qr_init_raw(qr, alloc, new_data, new_data_len, encoding, version, ecl);
+	return qr_post_encode(qr);
+}
+
+static bool qr_post_encode(struct qr *qr) {
+	// sanity checks
+	if (qr->encoding != ENC_NUMERIC && qr->encoding != ENC_ALPHANUMERIC && qr->encoding != ENC_BYTE && qr->encoding != ENC_KANJI) return false;
+
+
+	return true;
 }
 
 #undef FREE
@@ -335,7 +359,7 @@ bool qr_encode(struct qr *qr, const void *data, size_t len, int encoding, unsign
 void qr_close(struct qr *qr) {
 	// free internal data
 	if (qr->free_data && qr->alloc.free) qr->alloc.free(qr->free_data);
-	if (qr->data == qr->free_data) qr->data = NULL;
+	if (qr->data.data == qr->free_data) qr->data.data = NULL;
 	qr->free_data = NULL;
 
 	// free output data

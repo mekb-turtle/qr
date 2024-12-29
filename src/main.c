@@ -2,7 +2,10 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <stdbool.h>
+#include <string.h>
+#include <locale.h>
 #include "qr.h"
+#include "arg.h"
 #include "output.h"
 #define eprintf(...) fprintf(stderr, __VA_ARGS__)
 
@@ -17,6 +20,20 @@ struct options {
 };
 
 int main(int argc, char *argv[]) {
+	bool format_set = false;
+	struct options options;
+	memset(&options, 0, sizeof(options));
+
+	char *opt_format = NULL,
+	     *opt_background = NULL,
+	     *opt_foreground = NULL,
+	     *opt_quiet = NULL,
+	     *opt_module = NULL,
+	     *opt_output = NULL,
+	     *opt_ecl = NULL,
+	     *opt_version = NULL,
+	     *opt_encoding = NULL;
+
 	bool invalid = false;
 	int opt;
 
@@ -72,15 +89,92 @@ int main(int argc, char *argv[]) {
 #endif
 				return 0;
 			default:
-				invalid = true;
-				break;
+				if (invalid) break;
+				switch (opt) {
+					case 'f':
+						opt_format = optarg;
+						break;
+					case 'B':
+						opt_background = optarg;
+						break;
+					case 'F':
+						opt_foreground = optarg;
+						break;
+					case 'q':
+						opt_quiet = optarg;
+						break;
+					case 'm':
+						opt_module = optarg;
+						break;
+					case 'o':
+						opt_output = optarg;
+						break;
+					case 'e':
+						opt_ecl = optarg;
+						break;
+					case 'v':
+						opt_version = optarg;
+						break;
+					case 'E':
+						opt_encoding = optarg;
+						break;
+					default:
+						invalid = true;
+						break;
+				}
 		}
+	}
+
+	if (!opt_format) invalid = true;
+
+	// parse all options
+
+	if (!parse_output_format(opt_format, &options.format)) invalid = true;
+
+	if (opt_quiet) {
+		if (!parse_uint(opt_quiet, &options.quiet, NULL)) invalid = true;
+	} else {
+		options.quiet = QR_MARGIN_DEFAULT;
+	}
+
+	if (opt_module) {
+		if (!parse_uint(opt_module, &options.module_size, NULL)) invalid = true;
+		if (options.module_size < 1) invalid = true;
+	} else {
+		options.module_size = 1;
+	}
+
+	if (opt_ecl) {
+		if (!parse_ecl(opt_ecl, &options.ecl)) invalid = true;
+	} else {
+		options.ecl = ECL_LOW;
+	}
+
+	options.version = 0;
+	if (opt_version) {
+		if (strcmp(opt_version, "auto") != 0) {
+			if (!parse_uint(opt_version, &options.version, NULL)) invalid = true;
+			if (options.version > 40) invalid = true;
+		}
+	}
+
+	if (!parse_color_fallback(opt_background, options.format, &options.colors.bg, (struct color_rgb){0}, 0)) invalid = true;
+
+	if (!parse_color_fallback(opt_foreground, options.format, &options.colors.fg, (struct color_rgb){255, 255, 255}, 15)) invalid = true;
+
+	if (opt_encoding) {
+		if (!parse_encoding(opt_encoding, &options.encoding)) invalid = true;
+	} else {
+		options.encoding = ENC_AUTO;
 	}
 
 	if (optind != argc - 1 || invalid) {
 		eprintf("Invalid usage, try --help\n");
 		return 1;
 	}
+
+	const char *locale = setlocale(LC_ALL, NULL);
+	printf("Locale: %s\n", locale ? locale : "none");
 
 	const char *str = argv[argc];
 

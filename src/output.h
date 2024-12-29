@@ -30,6 +30,6 @@ struct color {
 struct color_pair {
 	struct color bg, fg;
 };
-bool parse_color(const char *str, enum output_format format, struct color *color);
+
 bool write_output(const char *filename, const struct qr_output *output, enum output_format format, struct color_pair colors);
 #endif // OUTPUT_H
