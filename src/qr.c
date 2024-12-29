@@ -5,6 +5,9 @@
 #include "util.h"
 #include "qr_table.h"
 
+//TODO: remove
+#include <stdio.h>
+
 #define FREE(ptr)                    \
 	{                                \
 		if (qr->alloc.free && ptr) { \
@@ -14,30 +17,30 @@
 	}
 
 static bool qr_post_encode(struct qr *qr);
-static bool qr_init_utf8_internal(struct qr *qr, const void *data_);
 
 static uint8_t encoding_bits[4] = {1, 2, 4, 8};
 
-bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum qr_encoding encoding, unsigned int version, enum qr_ecl ecl) {
+bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, enum qr_encoding encoding, uint8_t version, enum qr_ecl ecl) {
 	if (!alloc.malloc) return false;
 	qr_close(qr);
 	qr->alloc = alloc;
 	qr->encoding = encoding;
 	qr->version = version;
 	qr->ecl = ecl;
-	return qr_init_utf8_internal(qr, data);
-}
 
-static bool qr_init_utf8_internal(struct qr *qr, const void *data_) {
-	const uint8_t *data = data_;
-	if (!data_ || !*data) return false;
+	const uint8_t *data = data__;
+	if (!data) return false;
+
+	// arguments should not be used after this point
 
 	bool numeric = true, alphanumeric = true, byte = true, kanji = true;
 
 	const char *const numeric_chars = "0123456789";
 	const char *const alphanumeric_chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
 
-	size_t num_codepoints = 0, num_bytes = 0;
+	// count number of codepoints and bytes
+	qr->char_count = 0;
+	size_t num_bytes = 0;
 
 	// scan codepoints in UTF-8
 	for (size_t i = 0; data[i];) {
@@ -46,7 +49,7 @@ static bool qr_init_utf8_internal(struct qr *qr, const void *data_) {
 		if (!read) return false; // invalid UTF-8 sequence
 		i += read;               // move to next codepoint
 		num_bytes += read;
-		++num_codepoints;
+		++qr->char_count;
 
 		if (numeric)
 			numeric = strchr(numeric_chars, *data) != NULL;
@@ -61,7 +64,7 @@ static bool qr_init_utf8_internal(struct qr *qr, const void *data_) {
 	iconv_t cd = iconv_open("SHIFT_JIS//TRANSLIT", "UTF-8"); // enable transliteration
 	if (cd == (iconv_t) -1) return false;                    // failed to open iconv
 
-	size_t kanji_size = num_codepoints * 2; // worst case scenario but we can realloc later
+	size_t kanji_size = qr->char_count * 2; // worst case scenario but we can realloc later
 	uint8_t *kanji_data = qr->alloc.malloc(kanji_size);
 	if (!kanji_data) {
 		iconv_close(cd);
@@ -138,25 +141,20 @@ static bool qr_init_utf8_internal(struct qr *qr, const void *data_) {
 	}
 
 	struct bit_buffer *new_data = &qr->data; // short-hand
-	new_data->size = 1;
 
 	uint8_t table_mode_index;
 	switch (qr->encoding) {
 		case ENC_NUMERIC:
 			table_mode_index = 0;
-			new_data->size += (num_codepoints + 2) / 3 * 10;
 			break;
 		case ENC_ALPHANUMERIC:
 			table_mode_index = 1;
-			new_data->size += (num_codepoints + 1) / 2 * 11;
 			break;
 		case ENC_BYTE:
 			table_mode_index = 2;
-			new_data->size += num_codepoints;
 			break;
 		case ENC_KANJI:
 			table_mode_index = 3;
-			new_data->size += kanji_size / 2 * 13;
 			break;
 		default:
 			return false;
@@ -165,7 +163,7 @@ static bool qr_init_utf8_internal(struct qr *qr, const void *data_) {
 	if (qr->version > QR_MAX_VERSION) goto failure; // returns false, but we need to free kanji_data first
 
 	// find the smallest version that can fit the data
-	while (qr->version < QR_MIN_VERSION || character_capacity[qr->ecl * QR_MAX_VERSION + (qr->version - 1)][table_mode_index] < new_data->size) {
+	while (qr->version < QR_MIN_VERSION || character_capacity[4 * (qr->version - 1) + qr->ecl][table_mode_index] < qr->char_count) {
 		++qr->version;
 		if (qr->version > QR_MAX_VERSION) goto failure;
 	}
@@ -189,7 +187,11 @@ static bool qr_init_utf8_internal(struct qr *qr, const void *data_) {
 			return false;
 	}
 
-	new_data->data = qr->alloc.malloc(new_data->size + 3);
+	// approximate size of the data
+	new_data->size = QR_SIZE(qr->version);
+	new_data->size *= new_data->size;
+	new_data->size = (new_data->size + 7) / 8; // round up to nearest byte
+	new_data->data = qr->alloc.malloc(new_data->size);
 	if (!new_data->data) goto failure;
 
 		// helper macro to add bits to new_data
@@ -203,7 +205,7 @@ static bool qr_init_utf8_internal(struct qr *qr, const void *data_) {
 	}
 
 	// add character count indicator
-	if (!ADD_BITS(num_codepoints, count_bits)) goto discard_data;
+	if (!ADD_BITS(qr->char_count, count_bits)) goto discard_data;
 
 	switch (qr->encoding) {
 		case ENC_NUMERIC:
@@ -274,11 +276,6 @@ static bool qr_init_utf8_internal(struct qr *qr, const void *data_) {
 			return false;
 	}
 
-	// TODO: add terminator and padding
-	// TODO: add error correction
-	// TODO: add remainder bits
-	// TODO: render QR code
-
 	return qr_post_encode(qr);
 }
 
@@ -286,6 +283,10 @@ static bool qr_post_encode(struct qr *qr) {
 	// sanity checks
 	if (qr->encoding != ENC_NUMERIC && qr->encoding != ENC_ALPHANUMERIC && qr->encoding != ENC_BYTE && qr->encoding != ENC_KANJI) return false;
 
+	// TODO: add terminator and padding
+	// TODO: add error correction
+	// TODO: add remainder bits
+	// TODO: render QR code
 
 	return true;
 }
@@ -328,30 +329,27 @@ bool qr_output_read(struct qr_output output, uint8_t x, uint8_t y) {
 	return ((const uint8_t *) output.data)[byte] & bit;
 }
 
-bool qr_encode(struct qr *qr, const void *data, size_t len, int encoding, unsigned int module_size, unsigned int quiet_zone) {
+bool qr_render(struct qr *qr) {
 	if (qr->output.data) {
 		// free already allocated data
 		if (qr->alloc.free) qr->alloc.free(qr->output.data);
 		qr->output.data = NULL;
 	}
 
-	if (module_size < 1) return false;
-
 	// allocate memory for output
-	qr->output.qr_size = 21 + 4 * qr->version;
-	qr->output.data_size = (qr->output.qr_size * qr->output.qr_size + 7) / 8; // 1 bit per module
+	qr->output.qr_size = QR_SIZE(qr->version);
+	qr->output.data_size = (qr->output.qr_size * qr->output.qr_size + 7) / 8; // 1 bit per 
+	// max size is 248.4 MiB
 	qr->output.data = qr->alloc.malloc(qr->output.data_size);
 	if (!qr->output.data) return false;
 
 	// clear output
 	memset(qr->output.data, 0, qr->output.data_size);
 
-	// start writing modules
-	(void) data;
-	(void) len;
-	(void) encoding;
-	(void) module_size;
-	(void) quiet_zone;
+	// test
+	qr_output_write(&qr->output, 0, 0, true);
+	qr_output_write(&qr->output, 0, qr->output.qr_size - 1, true);
+	qr_output_write(&qr->output, qr->output.qr_size - 1, 0, true);
 
 	return false;
 }

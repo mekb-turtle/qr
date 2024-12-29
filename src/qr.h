@@ -8,6 +8,8 @@
 #define QR_MARGIN_DEFAULT (4)
 #define QR_MIN_VERSION (1)
 #define QR_MAX_VERSION (40)
+#define QR_ECL_NUM (4)
+#define QR_SIZE(version) (17 + 4 * version)
 
 // allocator functions
 struct qr_alloc {
@@ -48,17 +50,18 @@ struct qr {
 	void *free_data; // internal data created by qr_init that needs to be freed
 
 	struct qr_output {
-		void *data;      // one bit = one module
-		uint8_t qr_size; // width/height of the QR code
-		uint16_t data_size;
+		void *data;         // one bit = one module
+		uint8_t qr_size;    // width/height of the QR code matrix
+		uint32_t data_size; // size of the data buffer
 	} output;
 };
 
 // initialise QR code with UTF-8 encoded data
-bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum qr_encoding encoding, unsigned int version, enum qr_ecl ecl);
+// qr MUST be zeroed out at least once before calling this function
+bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum qr_encoding encoding, uint8_t version, enum qr_ecl ecl);
 
 // generates QR code
-bool qr_encode(struct qr *qr, const void *data, size_t len, int encoding, unsigned int module_size, unsigned int quiet_zone);
+bool qr_render(struct qr *qr);
 
 // reads a module from the QR code
 bool qr_output_read(struct qr_output output, uint8_t x, uint8_t y);

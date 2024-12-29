@@ -8,7 +8,6 @@
 typedef long long int ll;
 typedef unsigned long long int ull;
 
-// avoid reusing code
 static bool parse_internal(const char *str, ull *out, char **endptr, bool is_signed, ull min, ull max) {
 	if (!str || !*str) return false;
 
@@ -49,47 +48,17 @@ static bool parse_internal(const char *str, ull *out, char **endptr, bool is_sig
 
 // avoid reusing code for similar data types
 
-bool parse_ullong(const char *str, unsigned long long int *out, char **endptr) {
-	ull value;
-	if (!parse_internal(str, &value, endptr, true, 0, ULLONG_MAX)) return false;
-	*out = value;
-	return true;
-}
+#define PARSE_FUNC(name, type, min, max, signed) \
+	bool parse_##name(const char *str, type *out, char **endptr) { \
+		ull value; \
+		if (!parse_internal(str, &value, endptr, signed, min, max)) return false; \
+		*out = value; \
+		return true; \
+	}
 
-bool parse_llong(const char *str, long long int *out, char **endptr) {
-	ull value;
-	if (!parse_internal(str, &value, endptr, true, LLONG_MIN, LLONG_MAX)) return false;
-	*out = value;
-	return true;
-}
+#include "parse_int.h"
 
-bool parse_ulong(const char *str, unsigned long int *out, char **endptr) {
-	ull value;
-	if (!parse_internal(str, &value, endptr, false, 0, ULONG_MAX)) return false;
-	*out = value;
-	return true;
-}
-
-bool parse_long(const char *str, long int *out, char **endptr) {
-	ull value;
-	if (!parse_internal(str, &value, endptr, true, LONG_MIN, LONG_MAX)) return false;
-	*out = value;
-	return true;
-}
-
-bool parse_uint(const char *str, unsigned int *out, char **endptr) {
-	ull value;
-	if (!parse_internal(str, &value, endptr, false, 0, UINT_MAX)) return false;
-	*out = value;
-	return true;
-}
-
-bool parse_int(const char *str, int *out, char **endptr) {
-	ull value;
-	if (!parse_internal(str, &value, endptr, true, INT_MIN, INT_MAX)) return false;
-	*out = value;
-	return true;
-}
+#undef PARSE_FUNC
 
 #define MATCH(s1, s2) (strcasecmp(s1, s2) == 0)
 
@@ -103,8 +72,6 @@ bool parse_output_format(const char *str, enum output_format *format) {
 		*format = OUTPUT_UNICODE;
 	} else if (MATCH(str, "unicode2x") || MATCH(str, "u2x")) {
 		*format = OUTPUT_UNICODE2X;
-	} else if (MATCH(str, "ansi")) {
-		*format = OUTPUT_ANSI;
 	} else if (MATCH(str, "png")) {
 		*format = OUTPUT_PNG;
 	} else if (MATCH(str, "jpeg")) {
@@ -121,40 +88,30 @@ bool parse_output_format(const char *str, enum output_format *format) {
 	return true;
 }
 
-bool parse_color_fallback(const char *str, enum output_format format, struct color *color, struct color_rgb fallback_rgb, uint8_t fallback_ansi) {
+bool parse_color_fallback(const char *str, enum output_format format, struct color *color, struct color fallback) {
 	if (str) return parse_color(str, format, color);
-	if (format == OUTPUT_ANSI) {
-		color->ansi = fallback_ansi;
-	} else {
-		color->rgb = fallback_rgb;
-	}
+
+	// use fallback color if no color was specified
+	if (format & OUTPUT_IS_IMAGE) *color = fallback;
 	return true;
 }
 
 bool parse_color(const char *str, enum output_format format, struct color *out) {
 	if (!str || !*str) return false;
-	if (!(format & OUTPUT_IS_IMAGE) && format != OUTPUT_ANSI) return false; // no need
+	if (!(format & OUTPUT_IS_IMAGE)) return false; // only image formats have colors
 	char *endptr = NULL;
-	struct color color = {0};
 
-	unsigned long long int r = 0, g = 0, b = 0;
+	struct color color;
 
-	if (!parse_ullong(str, &r, &endptr)) return false;
-	if (format != OUTPUT_ANSI) {
-		if (*endptr != ',') return false; // missing comma
+	if (!parse_u8(str, &color.r, &endptr)) return false;
+	if (*endptr != ',') return false; // missing comma
 
-		if (!parse_ullong(endptr + 1, &g, &endptr)) return false;
-		if (*endptr != ',') return false; // missing comma
+	if (!parse_u8(endptr + 1, &color.g, &endptr)) return false;
+	if (*endptr != ',') return false; // missing comma
 
-		if (!parse_ullong(endptr + 1, &b, &endptr)) return false;
-	}
+	if (!parse_u8(endptr + 1, &color.b, &endptr)) return false;
 	if (*endptr) return false; // not all characters were consumed
 
-	if (r > 255 || g > 255 || b > 255) return false; // invalid color
-
-	color.rgb.r = r;
-	color.rgb.g = g;
-	color.rgb.b = b;
 	*out = color;
 
 	return true;

@@ -3,7 +3,10 @@
 #include <getopt.h>
 #include <stdbool.h>
 #include <string.h>
+#include <errno.h>
 #include <locale.h>
+#include <langinfo.h>
+#include <unistd.h>
 #include "qr.h"
 #include "arg.h"
 #include "output.h"
@@ -11,23 +14,28 @@
 
 struct options {
 	enum output_format format;
-	struct color_pair colors;
-	unsigned int quiet;
-	unsigned int module_size;
+	struct color fg, bg;
+	uint8_t quiet_zone;
+	uint8_t module_size;
 	enum qr_ecl ecl;
-	unsigned int version;
+	uint8_t version;
 	enum qr_encoding encoding;
 };
 
 int main(int argc, char *argv[]) {
-	bool format_set = false;
+	const char *locale = setlocale(LC_ALL, "");
+	if (!locale) {
+		eprintf("Failed to set locale\n");
+		return 1;
+	}
+
 	struct options options;
 	memset(&options, 0, sizeof(options));
 
 	char *opt_format = NULL,
 	     *opt_background = NULL,
 	     *opt_foreground = NULL,
-	     *opt_quiet = NULL,
+	     *opt_quiet_zone = NULL,
 	     *opt_module = NULL,
 	     *opt_output = NULL,
 	     *opt_ecl = NULL,
@@ -62,11 +70,11 @@ int main(int argc, char *argv[]) {
 -f --format <format>: Specify output format to use (default: text)\n\
   Values:\n\
     Image: png, jpeg, gif, bmp, ff\n\
-    Text: text, html, unicode, unicode2x, ansi\n\
+    Text: text, html, unicode, unicode2x\n\
 \n\
 -B --background <color>\n\
 -F --foreground <color>\n\
-  Values: r,g,b for image, 0-255 for ansi\n\
+  Values: r,g,b\n\
 \n\
 -q --quiet <modules>: Margin around code (default: %i)\n\
 -m --module <pixels>: Size of each module in pixels/characters (default: 8 for image, 1 for text)\n\
@@ -101,7 +109,7 @@ int main(int argc, char *argv[]) {
 						opt_foreground = optarg;
 						break;
 					case 'q':
-						opt_quiet = optarg;
+						opt_quiet_zone = optarg;
 						break;
 					case 'm':
 						opt_module = optarg;
@@ -125,27 +133,35 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (!opt_format) invalid = true;
+	if (optind != argc - 1 || invalid) {
+	invalid_syntax:
+		eprintf("Invalid usage, try --help\n");
+		return 1;
+	}
 
 	// parse all options
 
-	if (!parse_output_format(opt_format, &options.format)) invalid = true;
-
-	if (opt_quiet) {
-		if (!parse_uint(opt_quiet, &options.quiet, NULL)) invalid = true;
+	if (opt_format) {
+		if (!parse_output_format(opt_format, &options.format)) goto invalid_syntax;
 	} else {
-		options.quiet = QR_MARGIN_DEFAULT;
+		options.format = OUTPUT_TEXT;
+	}
+
+	if (opt_quiet_zone) {
+		if (!parse_u8(opt_quiet_zone, &options.quiet_zone, NULL)) goto invalid_syntax;
+	} else {
+		options.quiet_zone = QR_MARGIN_DEFAULT;
 	}
 
 	if (opt_module) {
-		if (!parse_uint(opt_module, &options.module_size, NULL)) invalid = true;
-		if (options.module_size < 1) invalid = true;
+		if (!parse_u8(opt_module, &options.module_size, NULL)) goto invalid_syntax;
+		if (options.module_size < 1) goto invalid_syntax;
 	} else {
 		options.module_size = 1;
 	}
 
 	if (opt_ecl) {
-		if (!parse_ecl(opt_ecl, &options.ecl)) invalid = true;
+		if (!parse_ecl(opt_ecl, &options.ecl)) goto invalid_syntax;
 	} else {
 		options.ecl = ECL_LOW;
 	}
@@ -153,30 +169,73 @@ int main(int argc, char *argv[]) {
 	options.version = 0;
 	if (opt_version) {
 		if (strcmp(opt_version, "auto") != 0) {
-			if (!parse_uint(opt_version, &options.version, NULL)) invalid = true;
-			if (options.version > 40) invalid = true;
+			if (!parse_u8(opt_version, &options.version, NULL)) goto invalid_syntax;
+			if (options.version > 40) goto invalid_syntax;
 		}
 	}
 
-	if (!parse_color_fallback(opt_background, options.format, &options.colors.bg, (struct color_rgb){0}, 0)) invalid = true;
+	if (!parse_color_fallback(opt_background, options.format, &options.bg, (struct color){255, 255, 255})) goto invalid_syntax;
 
-	if (!parse_color_fallback(opt_foreground, options.format, &options.colors.fg, (struct color_rgb){255, 255, 255}, 15)) invalid = true;
+	if (!parse_color_fallback(opt_foreground, options.format, &options.fg, (struct color){0, 0, 0})) goto invalid_syntax;
 
 	if (opt_encoding) {
-		if (!parse_encoding(opt_encoding, &options.encoding)) invalid = true;
+		if (!parse_encoding(opt_encoding, &options.encoding)) goto invalid_syntax;
 	} else {
 		options.encoding = ENC_AUTO;
 	}
 
-	if (optind != argc - 1 || invalid) {
-		eprintf("Invalid usage, try --help\n");
-		return 1;
+	struct qr_alloc alloc = QR_ALLOC(malloc, realloc, free);
+
+	const char *str = argv[optind];
+
+	const char *codeset = nl_langinfo(CODESET);
+	if (strcmp(codeset, "UTF-8") != 0) {
+		eprintf("Warning: Codeset (%s) is not UTF-8, output may be incorrect\n", codeset);
+		// TODO: convert to UTF-8
 	}
 
-	const char *locale = setlocale(LC_ALL, NULL);
-	printf("Locale: %s\n", locale ? locale : "none");
+	struct qr qr;
 
-	const char *str = argv[argc];
+	FILE *fp = stdout;
+	if (opt_output && strcmp(opt_output, "-") != 0) {
+		fp = fopen(opt_output, "wb");
+		if (!fp) {
+			eprintf("%s: %s\n", opt_output, strerror(errno));
+			return 1;
+		}
+	}
+
+	if (options.format & OUTPUT_IS_IMAGE) {
+		if (isatty(fileno(fp))) {
+			eprintf("Refusing to write image to terminal\n");
+		close_exit:
+			if (fp != stdout) fclose(fp);
+			return 1;
+		}
+	}
+
+	memset(&qr, 0, sizeof(qr)); // zero out the struct
+
+	if (!qr_init_utf8(&qr, alloc, str, options.encoding, options.version, options.ecl)) {
+		eprintf("Failed to initialise QR code\n");
+		goto close_exit;
+	}
+
+	if (!qr_render(&qr)) {
+		eprintf("Failed to encode QR code\n");
+	qr_exit:
+		qr_close(&qr);
+		goto close_exit;
+	}
+
+	if (!write_output(fp, &qr.output, OUTPUT_INFO(options.format, options.fg, options.bg, options.quiet_zone, options.module_size))) {
+		eprintf("Failed to write output\n");
+		goto qr_exit;
+	}
+
+	if (fp != stdout) fclose(fp);
+
+	qr_close(&qr);
 
 	return 0;
 }

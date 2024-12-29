@@ -3,10 +3,9 @@
 #include <stddef.h>
 #include <string.h>
 
-bool write_output(const char *filename, const struct qr_output *output, enum output_format format, struct color_pair colors) {
-	(void) filename;
+bool write_output(FILE *fp, const struct qr_output *output, struct output_info info) {
+	(void) fp;
 	(void) output;
-	(void) format;
-	(void) colors;
+	(void) info;
 	return false;
 }

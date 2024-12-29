@@ -2,6 +2,7 @@
 #define OUTPUT_H
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include "qr.h"
 
 enum output_format {
@@ -9,7 +10,6 @@ enum output_format {
 	OUTPUT_HTML = 0x01,
 	OUTPUT_UNICODE = 0x02,
 	OUTPUT_UNICODE2X = 0x03,
-	OUTPUT_ANSI = 0x04,
 	OUTPUT_PNG = 0xf1,
 	OUTPUT_JPEG = 0xf2,
 	OUTPUT_GIF = 0xf3,
@@ -18,18 +18,16 @@ enum output_format {
 	OUTPUT_IS_IMAGE = 0xf0
 };
 struct color {
-	union {
-		struct color_rgb {
-			uint8_t r;
-			uint8_t g;
-			uint8_t b;
-		} rgb;
-		uint8_t ansi;
-	};
+	uint8_t r, g, b;
 };
-struct color_pair {
-	struct color bg, fg;
+struct output_info {
+	enum output_format format;
+	struct color fg, bg;
+	uint8_t quiet_zone, module_size;
 };
 
-bool write_output(const char *filename, const struct qr_output *output, enum output_format format, struct color_pair colors);
+#define OUTPUT_INFO(format_, fg_, bg_, quiet_zone_, module_size_) \
+	((struct output_info){.format = format_, .fg = fg_, .bg = bg_, .quiet_zone = quiet_zone_, .module_size = module_size_})
+
+bool write_output(FILE *fp, const struct qr_output *output, struct output_info info);
 #endif // OUTPUT_H
