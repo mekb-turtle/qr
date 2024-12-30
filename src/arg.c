@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <string.h>
+#include "util.h"
 
 typedef long long int ll;
 typedef unsigned long long int ull;
@@ -28,9 +29,9 @@ static bool parse_internal(const char *str, ull *out, char **endptr, bool is_sig
 	errno = errno_;
 
 	// skip whitespace
-	while (*endptr) {
-		if (!isspace(*endptr)) break;
-		++endptr;
+	while (**endptr) {
+		if (!isspace(**endptr)) break;
+		++*endptr;
 	}
 
 	if (own_endptr && *endptr_) return false; // not all characters were consumed
@@ -48,19 +49,17 @@ static bool parse_internal(const char *str, ull *out, char **endptr, bool is_sig
 
 // avoid reusing code for similar data types
 
-#define PARSE_FUNC(name, type, min, max, signed) \
-	bool parse_##name(const char *str, type *out, char **endptr) { \
-		ull value; \
+#define PARSE_FUNC(name, type, min, max, signed)                                  \
+	bool parse_##name(const char *str, type *out, char **endptr) {                \
+		ull value;                                                                \
 		if (!parse_internal(str, &value, endptr, signed, min, max)) return false; \
-		*out = value; \
-		return true; \
+		*out = value;                                                             \
+		return true;                                                              \
 	}
 
 #include "parse_int.h"
 
 #undef PARSE_FUNC
-
-#define MATCH(s1, s2) (strcasecmp(s1, s2) == 0)
 
 bool parse_output_format(const char *str, enum output_format *format) {
 	if (!str || !*str) return false;
@@ -74,12 +73,14 @@ bool parse_output_format(const char *str, enum output_format *format) {
 		*format = OUTPUT_UNICODE2X;
 	} else if (MATCH(str, "png")) {
 		*format = OUTPUT_PNG;
-	} else if (MATCH(str, "jpeg")) {
-		*format = OUTPUT_JPEG;
-	} else if (MATCH(str, "gif")) {
-		*format = OUTPUT_GIF;
 	} else if (MATCH(str, "bmp")) {
 		*format = OUTPUT_BMP;
+	} else if (MATCH(str, "tga") || MATCH(str, "targa")) {
+		*format = OUTPUT_TGA;
+	} else if (MATCH(str, "hdr")) {
+		*format = OUTPUT_HDR;
+	} else if (MATCH(str, "jpg") || MATCH(str, "jpeg")) {
+		*format = OUTPUT_JPG;
 	} else if (MATCH(str, "ff") || MATCH(str, "farbfeld")) {
 		*format = OUTPUT_FF;
 	} else {
@@ -92,13 +93,13 @@ bool parse_color_fallback(const char *str, enum output_format format, struct col
 	if (str) return parse_color(str, format, color);
 
 	// use fallback color if no color was specified
-	if (format & OUTPUT_IS_IMAGE) *color = fallback;
+	if (OUTPUT_HAS_COLOR(format)) *color = fallback;
 	return true;
 }
 
 bool parse_color(const char *str, enum output_format format, struct color *out) {
 	if (!str || !*str) return false;
-	if (!(format & OUTPUT_IS_IMAGE)) return false; // only image formats have colors
+	if (!OUTPUT_HAS_COLOR(format)) return false; // only image formats have colors
 	char *endptr = NULL;
 
 	struct color color;

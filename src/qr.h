@@ -3,13 +3,15 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <limits.h>
 #include "util.h"
 
-#define QR_MARGIN_DEFAULT (4)
+#define QR_QUIET_ZONE_DEFAULT (4)
 #define QR_MIN_VERSION (1)
 #define QR_MAX_VERSION (40)
 #define QR_ECL_NUM (4)
 #define QR_SIZE(version) (17 + 4 * version)
+#define QR_DATA_SIZE(size) ((size * size + 7) / 8)
 
 // allocator functions
 struct qr_alloc {
@@ -20,6 +22,15 @@ struct qr_alloc {
 
 #define QR_ALLOC(malloc_, realloc_, free_) \
 	((struct qr_alloc){.malloc = malloc_, .realloc = realloc_, .free = free_})
+#define QR_POS(x_, y_) ((struct qr_pos){.x = x_, .y = y_})
+
+typedef uint16_t qr_t;
+#define QR_MIN (0)
+#define QR_MAX (UINT16_MAX)
+
+typedef struct qr_pos {
+	qr_t x, y;
+} qr_pos;
 
 struct qr {
 	// error correction level
@@ -50,21 +61,22 @@ struct qr {
 	void *free_data; // internal data created by qr_init that needs to be freed
 
 	struct qr_output {
-		void *data;         // one bit = one module
-		uint8_t qr_size;    // width/height of the QR code matrix
-		uint32_t data_size; // size of the data buffer
+		void *data;       // one bit = one module
+		qr_t size;        // width/height of the QR code matrix
+		size_t data_size; // size of the data buffer
 	} output;
 };
 
 // initialise QR code with UTF-8 encoded data
 // qr MUST be zeroed out at least once before calling this function
-bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum qr_encoding encoding, uint8_t version, enum qr_ecl ecl);
+bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum qr_encoding encoding, uint8_t version, enum qr_ecl ecl, const char **error);
 
 // generates QR code
-bool qr_render(struct qr *qr);
+bool qr_render(struct qr *qr, const char **error);
 
-// reads a module from the QR code
-bool qr_output_read(struct qr_output output, uint8_t x, uint8_t y);
+// read/write a module from the QR code
+bool qr_output_write(struct qr_output *output, qr_pos pos, bool value);
+bool qr_output_read(struct qr_output output, qr_pos pos);
 
 // frees the QR code
 void qr_close(struct qr *qr);

@@ -14,4 +14,3 @@ PARSE_FUNC(u16, uint16_t, 0, UINT16_MAX, false)
 PARSE_FUNC(i16, int16_t, INT16_MIN, INT16_MAX, true)
 PARSE_FUNC(u8, uint8_t, 0, UINT8_MAX, false)
 PARSE_FUNC(i8, int8_t, INT8_MIN, INT8_MAX, true)
-

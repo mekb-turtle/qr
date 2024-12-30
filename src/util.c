@@ -1,6 +1,14 @@
 #include "util.h"
+#include <stdio.h>
 // add bits to buffer
 bool add_bits(struct bit_buffer *buf, uint32_t value, uint8_t bits) {
+	printf("adding bits (%u): ", bits);
+	for (uint8_t i = 0; i < bits; ++i) {
+		// loop bits
+		printf("%d", (value >> (bits-i-1)) & 1);
+	}
+	printf("\n");
+
 	uint8_t *data = buf->data;
 
 	if (bits == 0 || bits > 32) return false; // invalid number of bits

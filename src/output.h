@@ -11,23 +11,29 @@ enum output_format {
 	OUTPUT_UNICODE = 0x02,
 	OUTPUT_UNICODE2X = 0x03,
 	OUTPUT_PNG = 0xf1,
-	OUTPUT_JPEG = 0xf2,
-	OUTPUT_GIF = 0xf3,
-	OUTPUT_BMP = 0xf4,
-	OUTPUT_FF = 0xf5,
+	OUTPUT_BMP = 0xf2,
+	OUTPUT_TGA = 0xf3,
+	OUTPUT_HDR = 0xf4,
+	OUTPUT_JPG = 0xf5,
+	OUTPUT_FF = 0xf6,
 	OUTPUT_IS_IMAGE = 0xf0
 };
+#define OUTPUT_HAS_COLOR(format) ((format) & OUTPUT_IS_IMAGE || (format) == OUTPUT_HTML)
+
 struct color {
 	uint8_t r, g, b;
 };
-struct output_info {
+
+typedef uint8_t module_t;
+#define MODULE_MAX (UINT8_MAX)
+#define MODULE_MIN 0
+
+struct output_options {
 	enum output_format format;
 	struct color fg, bg;
-	uint8_t quiet_zone, module_size;
+	module_t quiet_zone, module_size;
+	bool invert;
 };
 
-#define OUTPUT_INFO(format_, fg_, bg_, quiet_zone_, module_size_) \
-	((struct output_info){.format = format_, .fg = fg_, .bg = bg_, .quiet_zone = quiet_zone_, .module_size = module_size_})
-
-bool write_output(FILE *fp, const struct qr_output *output, struct output_info info);
+bool write_output(FILE *fp, const struct qr *output, struct output_options opt);
 #endif // OUTPUT_H
