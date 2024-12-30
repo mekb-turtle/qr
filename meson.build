@@ -16,6 +16,7 @@ tests = [
   { 'files': files('test'/'utf8fail.c'), 'should_fail': true },
   { 'files': files('test'/'bit_append.c') },
   { 'files': files('test'/'bit_append_fail.c'), 'should_fail': true },
+  { 'files': files('test'/'endian.c') },
 ]
 
 # add custom binary/text files to be compiled into the binary

@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include "qr.h"
 
+#define QUIET_ZONE_DEFAULT (4)
+
 enum output_format {
 	OUTPUT_TEXT = 0x00,
 	OUTPUT_HTML = 0x01,
@@ -35,5 +37,5 @@ struct output_options {
 	bool invert;
 };
 
-bool write_output(FILE *fp, const struct qr *output, struct output_options opt);
+bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, const char **error);
 #endif // OUTPUT_H

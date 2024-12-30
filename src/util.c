@@ -1,13 +1,19 @@
 #include "util.h"
+// #define DEBUG
+#ifdef DEBUG
 #include <stdio.h>
+#endif
+
 // add bits to buffer
 bool add_bits(struct bit_buffer *buf, uint32_t value, uint8_t bits) {
-	printf("adding bits (%u): ", bits);
+#ifdef DEBUG
+	eprintf("Adding %u bits to %p: ", bits, (void *) buf);
 	for (uint8_t i = 0; i < bits; ++i) {
 		// loop bits
-		printf("%d", (value >> (bits-i-1)) & 1);
+		eprintf("%d", (value >> (bits - i - 1)) & 1);
 	}
-	printf("\n");
+	eprintf("\n");
+#endif
 
 	uint8_t *data = buf->data;
 
@@ -44,4 +50,21 @@ bool add_bits(struct bit_buffer *buf, uint32_t value, uint8_t bits) {
 		++buf->byte_index;
 	}
 	return true;
+}
+
+bool is_little_endian() {
+	// 0x0100 if LE, 0x0001 if BE, casting to u8 gives first byte
+	uint16_t val = 1;
+	return *(uint8_t *) &val;
+}
+
+uint16_t endian16_swap(uint16_t val) {
+	return ((0xFF00 & val) >> 010) | ((0x00FF & val) << 010);
+}
+
+uint32_t endian32_swap(uint32_t val) {
+	return ((0xFF000000 & val) >> 030) |
+	       ((0x00FF0000 & val) >> 010) |
+	       ((0x0000FF00 & val) << 010) |
+	       ((0x000000FF & val) << 030);
 }

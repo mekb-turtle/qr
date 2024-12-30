@@ -10,7 +10,7 @@
 #include "qr.h"
 #include "arg.h"
 #include "output.h"
-#define eprintf(...) fprintf(stderr, __VA_ARGS__)
+#include "util.h"
 
 struct options {
 	bool invert;
@@ -22,6 +22,9 @@ struct options {
 	uint8_t version;
 	enum qr_encoding encoding;
 };
+
+#define MODULE_SIZE_IMAGE_DEFAULT 8
+#define MODULE_SIZE_TEXT_DEFAULT 1
 
 int main(int argc, char *argv[]) {
 	const char *locale = setlocale(LC_ALL, "");
@@ -79,8 +82,8 @@ int main(int argc, char *argv[]) {
 -F --foreground <color>\n\
   Values: r,g,b\n\
 \n\
--q --quiet <modules>: Margin around code in pixels/characters (default: %i)\n\
--m --module <pixels>: Size of each module in pixels/characters (default: 8 for image, 1 for text)\n\
+-q --quiet <modules>: Margin around code in modules (default: %i)\n\
+-m --module <pixels>: Size of each module in pixels/characters (default: %i for image, %i for text)\n\
 \n\
 -o --output: Specify the output file, - for stdin\n\
 \n\
@@ -91,7 +94,7 @@ int main(int argc, char *argv[]) {
   Values: auto/numeric/alphanumeric/byte/kanji\n\
 \n\
 ",
-				       QR_QUIET_ZONE_DEFAULT);
+				       QUIET_ZONE_DEFAULT, MODULE_SIZE_IMAGE_DEFAULT, MODULE_SIZE_TEXT_DEFAULT);
 				return 0;
 			case 'V':
 				printf("%s %s\n", PROJECT_NAME, PROJECT_VERSION);
@@ -171,15 +174,13 @@ int main(int argc, char *argv[]) {
 		if (!parse_u8(opt_module, &options.module_size, NULL)) goto invalid_syntax;
 		if (options.module_size < 1) goto invalid_syntax;
 	} else {
-		options.module_size = 1;
+		options.module_size = options.format & OUTPUT_IS_IMAGE ? MODULE_SIZE_IMAGE_DEFAULT : MODULE_SIZE_TEXT_DEFAULT;
 	}
 
 	if (opt_quiet_zone) {
 		if (!parse_u8(opt_quiet_zone, &options.quiet_zone, NULL)) goto invalid_syntax;
 	} else {
-		if (options.module_size > MODULE_MAX / QR_QUIET_ZONE_DEFAULT) options.quiet_zone = MODULE_MAX; // prevent overflow
-		else
-			options.quiet_zone = QR_QUIET_ZONE_DEFAULT * options.module_size;
+		options.quiet_zone = QUIET_ZONE_DEFAULT;
 	}
 
 	if (opt_ecl) {
@@ -208,11 +209,13 @@ int main(int argc, char *argv[]) {
 
 	struct qr_alloc alloc = QR_ALLOC(malloc, realloc, free);
 
+	int ret = 1;
+
 	const char *str = argv[optind];
 
 	const char *codeset = nl_langinfo(CODESET);
 	if (strcmp(codeset, "UTF-8") != 0) {
-		eprintf("Warning: Codeset (%s) is not UTF-8, output may be incorrect\n", codeset);
+		eprintf("Warning: Input encoding is not UTF-8, output may be incorrect\n");
 		// TODO: convert to UTF-8
 	}
 
@@ -232,25 +235,22 @@ int main(int argc, char *argv[]) {
 			eprintf("Refusing to write image to terminal\n");
 		close_exit:
 			if (fp != stdout) fclose(fp);
-			return 1;
+			return ret;
 		}
 	}
 
 	memset(&qr, 0, sizeof(qr)); // zero out the struct
 
 	const char *error = NULL;
+#define PRINT_ERROR(msg) eprintf("%s%s%s\n", msg, error ? ": " : "", error ? error : "")
 
-	if (!qr_init_utf8(&qr, alloc, str, options.encoding, options.version, options.ecl, &error)) {
-		eprintf("Failed to initialise QR code");
-		if (error) eprintf(": %s\n", error);
-		eprintf("\n");
+	if (!qr_encode_utf8(&qr, alloc, str, options.encoding, options.version, options.ecl, &error)) {
+		PRINT_ERROR("Failed to encode QR code");
 		goto close_exit;
 	}
 
 	if (!qr_render(&qr, &error)) {
-		eprintf("Failed to render QR code");
-		if (error) eprintf(": %s\n", error);
-		eprintf("\n");
+		PRINT_ERROR("Failed to render QR code");
 	qr_exit:
 		qr_close(&qr);
 		goto close_exit;
@@ -264,14 +264,11 @@ int main(int argc, char *argv[]) {
 	        .module_size = options.module_size,
 	        .invert = options.invert};
 
-	if (!write_output(fp, &qr, out_opt)) {
-		eprintf("Failed to write output\n");
+	if (!write_output(fp, &qr, out_opt, &error)) {
+		PRINT_ERROR("Failed to write output");
 		goto qr_exit;
 	}
 
-	if (fp != stdout) fclose(fp);
-
-	qr_close(&qr);
-
-	return 0;
+	ret = 0; // success
+	goto qr_exit;
 }

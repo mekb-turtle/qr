@@ -6,7 +6,6 @@
 #include <limits.h>
 #include "util.h"
 
-#define QR_QUIET_ZONE_DEFAULT (4)
 #define QR_MIN_VERSION (1)
 #define QR_MAX_VERSION (40)
 #define QR_ECL_NUM (4)
@@ -28,9 +27,9 @@ typedef uint16_t qr_t;
 #define QR_MIN (0)
 #define QR_MAX (UINT16_MAX)
 
-typedef struct qr_pos {
+struct qr_pos {
 	qr_t x, y;
-} qr_pos;
+};
 
 struct qr {
 	// error correction level
@@ -67,16 +66,16 @@ struct qr {
 	} output;
 };
 
-// initialise QR code with UTF-8 encoded data
+// encode QR code with UTF-8 encoded data
 // qr MUST be zeroed out at least once before calling this function
-bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum qr_encoding encoding, uint8_t version, enum qr_ecl ecl, const char **error);
+bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum qr_encoding encoding, uint8_t version, enum qr_ecl ecl, const char **error);
 
 // generates QR code
 bool qr_render(struct qr *qr, const char **error);
 
 // read/write a module from the QR code
-bool qr_output_write(struct qr_output *output, qr_pos pos, bool value);
-bool qr_output_read(struct qr_output output, qr_pos pos);
+bool qr_output_write(struct qr_output *output, struct qr_pos pos, bool value);
+bool qr_output_read(struct qr_output output, struct qr_pos pos);
 
 // frees the QR code
 void qr_close(struct qr *qr);

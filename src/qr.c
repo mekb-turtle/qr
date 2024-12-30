@@ -15,6 +15,7 @@
 
 static bool qr_post_encode(struct qr *qr, const char **error);
 
+// numeric, alphanumeric, byte, kanji
 static uint8_t encoding_bits[4] = {1, 2, 4, 8};
 
 static bool qr_ensure_alloc(struct qr *qr) {
@@ -24,9 +25,7 @@ static bool qr_ensure_alloc(struct qr *qr) {
 	return true;
 }
 
-#define ERR_ALLOC "Failed to allocate memory"
-
-bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, enum qr_encoding encoding, uint8_t version, enum qr_ecl ecl, const char **error) {
+bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, enum qr_encoding encoding, uint8_t version, enum qr_ecl ecl, const char **error) {
 	// pointers to simplify error handling
 	uint8_t *kanji_data = NULL;
 	struct bit_buffer *new_data = NULL;
@@ -159,28 +158,10 @@ bool qr_init_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, enum
 
 	new_data = &qr->data; // short-hand
 
-	uint8_t table_mode_index;
-	switch (qr->encoding) {
-		case ENC_NUMERIC:
-			table_mode_index = 0;
-			break;
-		case ENC_ALPHANUMERIC:
-			table_mode_index = 1;
-			break;
-		case ENC_BYTE:
-			table_mode_index = 2;
-			break;
-		case ENC_KANJI:
-			table_mode_index = 3;
-			break;
-		default:
-			ERROR("Invalid encoding");
-	}
-
 	if (qr->version > QR_MAX_VERSION) ERROR("Invalid version");
 
 	// find the smallest version that can fit the data
-	while (qr->version < QR_MIN_VERSION || character_capacity[4 * (qr->version - 1) + qr->ecl][table_mode_index] < qr->char_count) {
+	while (qr->version < QR_MIN_VERSION || character_capacity[4 * (qr->version - 1) + qr->ecl][qr->encoding] < qr->char_count) {
 		++qr->version;
 		if (qr->version > QR_MAX_VERSION) ERROR("Too much data");
 	}
@@ -307,7 +288,7 @@ static bool qr_post_encode(struct qr *qr, const char **error) {
 
 #undef FREE
 
-static bool qr_output_offset(struct qr_output output, qr_pos pos, size_t *byte, uint8_t *bit) {
+static bool qr_output_offset(struct qr_output output, struct qr_pos pos, size_t *byte, uint8_t *bit) {
 	// check if x and y are within bounds
 	if (pos.x >= output.size || pos.y >= output.size) return false;
 
@@ -318,7 +299,7 @@ static bool qr_output_offset(struct qr_output output, qr_pos pos, size_t *byte, 
 	return true;
 }
 
-bool qr_output_write(struct qr_output *output, qr_pos pos, bool value) {
+bool qr_output_write(struct qr_output *output, struct qr_pos pos, bool value) {
 	size_t byte;
 	uint8_t bit;
 	if (!qr_output_offset(*output, pos, &byte, &bit)) return false;
@@ -334,7 +315,7 @@ bool qr_output_write(struct qr_output *output, qr_pos pos, bool value) {
 	return true;
 }
 
-bool qr_output_read(struct qr_output output, qr_pos pos) {
+bool qr_output_read(struct qr_output output, struct qr_pos pos) {
 	size_t byte;
 	uint8_t bit;
 	if (!qr_output_offset(output, pos, &byte, &bit)) return false;
