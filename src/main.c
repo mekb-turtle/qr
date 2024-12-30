@@ -48,23 +48,26 @@ int main(int argc, char *argv[]) {
 	     *opt_version = NULL,
 	     *opt_encoding = NULL;
 
+	bool force_terminal = false;
+
 	bool invalid = false;
 	int opt;
 
 	// argument handling
-	while ((opt = getopt_long(argc, argv, ":hVf:iB:F:q:m:o:e:v:E:", (struct option[]){
-	                                                                        {"help",       no_argument,       0, 'h'},
-	                                                                        {"format",     required_argument, 0, 'f'},
-	                                                                        {"invert",     no_argument,       0, 'i'},
-	                                                                        {"background", required_argument, 0, 'B'},
-	                                                                        {"foreground", required_argument, 0, 'F'},
-	                                                                        {"quiet",      required_argument, 0, 'q'},
-	                                                                        {"module",     required_argument, 0, 'm'},
-	                                                                        {"output",     required_argument, 0, 'o'},
-	                                                                        {"ecl",        required_argument, 0, 'e'},
-	                                                                        {"version",    required_argument, 0, 'v'},
-	                                                                        {"encoding",   required_argument, 0, 'E'},
-	                                                                        {0,            0,                 0, 0  }
+	while ((opt = getopt_long(argc, argv, ":hVf:iB:F:q:m:o:e:v:E:S", (struct option[]){
+	                                                                         {"help",       no_argument,       0, 'h'},
+	                                                                         {"format",     required_argument, 0, 'f'},
+	                                                                         {"invert",     no_argument,       0, 'i'},
+	                                                                         {"background", required_argument, 0, 'B'},
+	                                                                         {"foreground", required_argument, 0, 'F'},
+	                                                                         {"quiet",      required_argument, 0, 'q'},
+	                                                                         {"module",     required_argument, 0, 'm'},
+	                                                                         {"output",     required_argument, 0, 'o'},
+	                                                                         {"ecl",        required_argument, 0, 'e'},
+	                                                                         {"version",    required_argument, 0, 'v'},
+	                                                                         {"encoding",   required_argument, 0, 'E'},
+	                                                                         {"terminal",   no_argument,       0, 'S'},
+	                                                                         {0,            0,                 0, 0  }
     },
 	                          NULL)) != -1) {
 		switch (opt) {
@@ -145,6 +148,9 @@ int main(int argc, char *argv[]) {
 					case 'E':
 						if (!optarg) invalid = true;
 						opt_encoding = optarg;
+						break;
+					case 'S':
+						force_terminal = true;
 						break;
 					default:
 						invalid = true;
@@ -237,13 +243,11 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (options.format & OUTPUT_IS_IMAGE) {
-		if (isatty(fileno(fp))) {
-			eprintf("Refusing to write image to terminal\n");
-		close_exit:
-			if (fp != stdout) fclose(fp);
-			return ret;
-		}
+	if (options.format & OUTPUT_IS_IMAGE && !force_terminal && isatty(fileno(fp))) {
+		eprintf("Refusing to write image to terminal\n");
+	close_exit:
+		if (fp != stdout) fclose(fp);
+		return ret;
 	}
 
 	memset(&qr, 0, sizeof(qr)); // zero out the struct

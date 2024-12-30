@@ -23,9 +23,9 @@ struct qr_alloc {
 	((struct qr_alloc){.malloc = malloc_, .realloc = realloc_, .free = free_})
 #define QR_POS(x_, y_) ((struct qr_pos){.x = x_, .y = y_})
 
-typedef uint16_t qr_t;
+typedef uint32_t qr_t;
 #define QR_MIN (0)
-#define QR_MAX (UINT16_MAX)
+#define QR_MAX (UINT32_MAX)
 
 struct qr_pos {
 	qr_t x, y;
@@ -59,7 +59,7 @@ struct qr {
 
 	void *free_data; // internal data created by qr_init that needs to be freed
 
-	struct qr_output {
+	struct qr_bitmap {
 		void *data;       // one bit = one module
 		qr_t size;        // width/height of the QR code matrix
 		size_t data_size; // size of the data buffer
@@ -74,8 +74,8 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum
 bool qr_render(struct qr *qr, const char **error);
 
 // read/write a module from the QR code
-bool qr_output_write(struct qr_output *output, struct qr_pos pos, bool value);
-bool qr_output_read(struct qr_output output, struct qr_pos pos);
+bool qr_bitmap_write(struct qr_bitmap *output, struct qr_pos pos, bool value);
+bool qr_bitmap_read(struct qr_bitmap output, struct qr_pos pos);
 
 // frees the QR code
 void qr_close(struct qr *qr);

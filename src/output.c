@@ -18,7 +18,8 @@ void write_data(void *context, void *data, int size) {
 }
 
 bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, const char **error) {
-	struct qr_output bitmap;
+	struct qr_bitmap bitmap;
+	bitmap.data = NULL;
 	uint8_t *image = NULL;
 
 #define ERROR(msg)         \
@@ -31,14 +32,15 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 
 	// check for overflow
 	bitmap.size = 2 * (qr_t) opt.quiet_zone;
-	if ((qr_t) qr->output.size > QR_MAX - bitmap.size) ERROR("Output too large");
+	if ((qr_t) qr->output.size > QR_MAX - bitmap.size) ERROR("Bitmap too large");
 	bitmap.size += (qr_t) qr->output.size;
 	if ((qr_t) opt.module_size > QR_MAX / bitmap.size) ERROR("Module size too large");
 	bitmap.size *= (qr_t) opt.module_size;
+	if ((qr_t) bitmap.size > QR_MAX / bitmap.size * 8) ERROR("Bitmap too large");
 
 	// construct larger output before encoding
 	bitmap.data_size = QR_DATA_SIZE(bitmap.size);
-	bitmap.data = qr->alloc.malloc(bitmap.size * bitmap.size);
+	bitmap.data = qr->alloc.malloc(bitmap.data_size);
 	if (!bitmap.data) ERROR(ERR_ALLOC);
 
 	if (opt.invert && OUTPUT_HAS_COLOR(opt.format)) {
@@ -57,14 +59,14 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 	for (pos.y = 0; pos.y < qr->output.size; pos.y++)
 		for (pos.x = 0; pos.x < qr->output.size; pos.x++) {
 			// skip if false and not inverted, or true and inverted
-			if (qr_output_read(qr->output, pos) == false) continue;
+			if (qr_bitmap_read(qr->output, pos) == false) continue;
 
 			// write the square
 			struct qr_pos off = QR_POS((pos.x + opt.quiet_zone) * opt.module_size, (pos.y + opt.quiet_zone) * opt.module_size);
 			struct qr_pos rel;
 			for (rel.y = 0; rel.y < opt.module_size; rel.y++)
 				for (rel.x = 0; rel.x < opt.module_size; rel.x++) {
-					qr_output_write(&bitmap, QR_POS(off.x + rel.x, off.y + rel.y), !opt.invert);
+					qr_bitmap_write(&bitmap, QR_POS(off.x + rel.x, off.y + rel.y), !opt.invert);
 				}
 		}
 
@@ -81,7 +83,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 			WRITE(&size, sizeof(size)); // height
 			for (pos.y = 0; pos.y < bitmap.size; pos.y++)
 				for (pos.x = 0; pos.x < bitmap.size; pos.x++) {
-					struct color c = qr_output_read(bitmap, pos) ? opt.fg : opt.bg;
+					struct color c = qr_bitmap_read(bitmap, pos) ? opt.fg : opt.bg;
 					// farbfeld uses BE 16-bit values for each channel
 					WRITE(((uint8_t[]){c.r, c.r, c.g, c.g, c.b, c.b, c.a, c.a}), 8);
 				}
@@ -93,7 +95,9 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 			const uint8_t channels = 4;
 			uint8_t bytes_per_pixel = bytes_per_channel * channels;
 
-			size_t image_stride = bitmap.size * bytes_per_pixel;
+			if (bitmap.size > SIZE_MAX / bytes_per_pixel) ERROR("Bitmap too large");
+			size_t image_stride = (size_t)bitmap.size * bytes_per_pixel;
+			if (image_stride > SIZE_MAX / bitmap.size) ERROR("Bitmap too large");
 			size_t image_size = bitmap.size * image_stride;
 			image = qr->alloc.malloc(image_size);
 			float *imagef = (float *) image;
@@ -103,7 +107,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 			size_t i;
 			for (i = 0, pos.y = 0; pos.y < bitmap.size; pos.y++)
 				for (pos.x = 0; pos.x < bitmap.size; pos.x++, i += channels) {
-					struct color c = qr_output_read(bitmap, pos) ? opt.fg : opt.bg;
+					struct color c = qr_bitmap_read(bitmap, pos) ? opt.fg : opt.bg;
 					if (is_float) {
 						imagef[i + 0] = c.r / 255.0f;
 						imagef[i + 1] = c.g / 255.0f;
@@ -168,7 +172,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 				PRINT("<tr>");
 
 			for (pos.x = 0; pos.x < bitmap.size; pos.x++) {
-				bool bit = qr_output_read(bitmap, pos);
+				bool bit = qr_bitmap_read(bitmap, pos);
 				switch (opt.format) {
 					case OUTPUT_TEXT:
 						PRINT(bit ? "##" : "  ");
@@ -181,7 +185,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 						PRINT(bit ? "\u2588\u2588" : "  ");
 						break;
 					case OUTPUT_UNICODE2X:;
-						bool bit2 = qr_output_read(bitmap, QR_POS(pos.x, pos.y + 1));
+						bool bit2 = qr_bitmap_read(bitmap, QR_POS(pos.x, pos.y + 1));
 						PRINT(bit ? (bit2 ? "\u2588" : "\u2580") : (bit2 ? "\u2584" : " "));
 						break;
 					default:

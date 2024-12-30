@@ -288,7 +288,7 @@ static bool qr_post_encode(struct qr *qr, const char **error) {
 
 #undef FREE
 
-static bool qr_output_offset(struct qr_output output, struct qr_pos pos, size_t *byte, uint8_t *bit) {
+static bool qr_bitmap_offset(struct qr_bitmap output, struct qr_pos pos, size_t *byte, uint8_t *bit) {
 	// check if x and y are within bounds
 	if (pos.x >= output.size || pos.y >= output.size) return false;
 
@@ -299,10 +299,10 @@ static bool qr_output_offset(struct qr_output output, struct qr_pos pos, size_t 
 	return true;
 }
 
-bool qr_output_write(struct qr_output *output, struct qr_pos pos, bool value) {
+bool qr_bitmap_write(struct qr_bitmap *output, struct qr_pos pos, bool value) {
 	size_t byte;
 	uint8_t bit;
-	if (!qr_output_offset(*output, pos, &byte, &bit)) return false;
+	if (!qr_bitmap_offset(*output, pos, &byte, &bit)) return false;
 
 	uint8_t *data = output->data; // can't use void* for bit manipulation
 
@@ -315,10 +315,10 @@ bool qr_output_write(struct qr_output *output, struct qr_pos pos, bool value) {
 	return true;
 }
 
-bool qr_output_read(struct qr_output output, struct qr_pos pos) {
+bool qr_bitmap_read(struct qr_bitmap output, struct qr_pos pos) {
 	size_t byte;
 	uint8_t bit;
-	if (!qr_output_offset(output, pos, &byte, &bit)) return false;
+	if (!qr_bitmap_offset(output, pos, &byte, &bit)) return false;
 
 	// get bit
 	return ((const uint8_t *) output.data)[byte] & bit;
@@ -344,9 +344,9 @@ bool qr_render(struct qr *qr, const char **error) {
 	memset(qr->output.data, 0, qr->output.data_size);
 
 	// test
-	qr_output_write(&qr->output, QR_POS(0, 0), true);
-	qr_output_write(&qr->output, QR_POS(0, qr->output.size - 1), true);
-	qr_output_write(&qr->output, QR_POS(qr->output.size - 1, 0), true);
+	qr_bitmap_write(&qr->output, QR_POS(0, 0), true);
+	qr_bitmap_write(&qr->output, QR_POS(0, qr->output.size - 1), true);
+	qr_bitmap_write(&qr->output, QR_POS(qr->output.size - 1, 0), true);
 
 	return true;
 }
