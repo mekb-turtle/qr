@@ -8,5 +8,4 @@
 // define custom alloc functions for stb_image_write
 extern struct qr_alloc output_alloc;
 
-#define STBI_WRITE_NO_STDIO
 #include "../submodule/stb/stb_image_write.h"

@@ -21,7 +21,7 @@ enum output_format {
 	OUTPUT_IS_IMAGE = 0xf0
 };
 #define OUTPUT_HAS_COLOR(format) ((format) & OUTPUT_IS_IMAGE || (format) == OUTPUT_HTML)
-#define OUTPUT_HAS_ALPHA(format) ((format) == OUTPUT_PNG || (format) == OUTPUT_TGA || (format) == OUTPUT_HDR || (format) == OUTPUT_FF)
+#define OUTPUT_HAS_ALPHA(format) ((format) == OUTPUT_PNG || (format) == OUTPUT_TGA || (format) == OUTPUT_FF)
 #define OUTPUT_HAS_FLOAT(format) ((format) == OUTPUT_HDR)
 
 struct color {

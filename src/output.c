@@ -18,24 +18,28 @@ void write_data(void *context, void *data, int size) {
 }
 
 bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, const char **error) {
-#define ERROR(msg)    \
-	{                 \
-		*error = msg; \
-		return false; \
+	struct qr_output bitmap;
+	uint8_t *image = NULL;
+
+#define ERROR(msg)         \
+	{                      \
+		*error = msg;      \
+		FREE(bitmap.data); \
+		FREE(image);       \
+		return false;      \
 	}
 
-	struct qr_output img;
 	// check for overflow
-	img.size = 2 * (qr_t) opt.quiet_zone;
-	if ((qr_t) qr->output.size > QR_MAX - img.size) ERROR("Output too large");
-	img.size += (qr_t) qr->output.size;
-	if ((qr_t) opt.module_size > QR_MAX / img.size) ERROR("Module size too large");
-	img.size *= (qr_t) opt.module_size;
+	bitmap.size = 2 * (qr_t) opt.quiet_zone;
+	if ((qr_t) qr->output.size > QR_MAX - bitmap.size) ERROR("Output too large");
+	bitmap.size += (qr_t) qr->output.size;
+	if ((qr_t) opt.module_size > QR_MAX / bitmap.size) ERROR("Module size too large");
+	bitmap.size *= (qr_t) opt.module_size;
 
 	// construct larger output before encoding
-	img.data_size = QR_DATA_SIZE(img.size);
-	img.data = qr->alloc.malloc(img.size * img.size);
-	if (!img.data) ERROR(ERR_ALLOC);
+	bitmap.data_size = QR_DATA_SIZE(bitmap.size);
+	bitmap.data = qr->alloc.malloc(bitmap.size * bitmap.size);
+	if (!bitmap.data) ERROR(ERR_ALLOC);
 
 	if (opt.invert && OUTPUT_HAS_COLOR(opt.format)) {
 		// swapping colors is more efficient
@@ -46,7 +50,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 	}
 
 	// clear output
-	memset(img.data, opt.invert ? 0xFF : 0x00, img.data_size);
+	memset(bitmap.data, opt.invert ? 0xFF : 0x00, bitmap.data_size);
 
 	// copy data
 	struct qr_pos pos;
@@ -60,50 +64,89 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 			struct qr_pos rel;
 			for (rel.y = 0; rel.y < opt.module_size; rel.y++)
 				for (rel.x = 0; rel.x < opt.module_size; rel.x++) {
-					qr_output_write(&img, QR_POS(off.x + rel.x, off.y + rel.y), !opt.invert);
+					qr_output_write(&bitmap, QR_POS(off.x + rel.x, off.y + rel.y), !opt.invert);
 				}
 		}
 
 	if (opt.format & OUTPUT_IS_IMAGE) {
 #define WRITE(data, len) fwrite(data, 1, len, fp)
 		// output image
-		// set alloc functions for stbi
-		output_alloc = qr->alloc;
-		switch (opt.format) {
-			case OUTPUT_PNG:
-				break;
-			case OUTPUT_BMP:
-				break;
-			case OUTPUT_TGA:
-				break;
-			case OUTPUT_HDR:
-				break;
-			case OUTPUT_JPG:
-				break;
-			case OUTPUT_FF:
-				// stbi doesn't support this format
-				// write it ourselves
-				WRITE("farbfeld", 8); // magic
-				const uint32_t size = TO_BE32((uint32_t) img.size);
-				WRITE(&size, sizeof(size)); // width
-				WRITE(&size, sizeof(size)); // height
-				for (pos.y = 0; pos.y < img.size; pos.y++)
-					for (pos.x = 0; pos.x < img.size; pos.x++) {
-						struct color c = qr_output_read(img, pos) ? opt.fg : opt.bg;
-						// farbfeld uses BE 16-bit values for each channel
-						WRITE(((uint8_t[]){c.r, c.r, c.g, c.g, c.b, c.b, c.a, c.a}), 8);
+		if (opt.format == OUTPUT_FF) {
+			// stbi doesn't support this format
+			// write it ourselves
+			// see https://tools.suckless.org/farbfeld/
+			WRITE("farbfeld", 8); // magic
+			const uint32_t size = TO_BE32((uint32_t) bitmap.size);
+			WRITE(&size, sizeof(size)); // width
+			WRITE(&size, sizeof(size)); // height
+			for (pos.y = 0; pos.y < bitmap.size; pos.y++)
+				for (pos.x = 0; pos.x < bitmap.size; pos.x++) {
+					struct color c = qr_output_read(bitmap, pos) ? opt.fg : opt.bg;
+					// farbfeld uses BE 16-bit values for each channel
+					WRITE(((uint8_t[]){c.r, c.r, c.g, c.g, c.b, c.b, c.a, c.a}), 8);
+				}
+		} else {
+			// create image for use with stbi
+			bool is_float = OUTPUT_HAS_FLOAT(opt.format);
+
+			uint8_t bytes_per_channel = is_float ? sizeof(float) : 1;
+			const uint8_t channels = 4;
+			uint8_t bytes_per_pixel = bytes_per_channel * channels;
+
+			size_t image_stride = bitmap.size * bytes_per_pixel;
+			size_t image_size = bitmap.size * image_stride;
+			image = qr->alloc.malloc(image_size);
+			float *imagef = (float *) image;
+			if (!image) ERROR(ERR_ALLOC);
+
+			// copy image data to new buffer
+			size_t i;
+			for (i = 0, pos.y = 0; pos.y < bitmap.size; pos.y++)
+				for (pos.x = 0; pos.x < bitmap.size; pos.x++, i += channels) {
+					struct color c = qr_output_read(bitmap, pos) ? opt.fg : opt.bg;
+					if (is_float) {
+						imagef[i + 0] = c.r / 255.0f;
+						imagef[i + 1] = c.g / 255.0f;
+						imagef[i + 2] = c.b / 255.0f;
+						imagef[i + 3] = c.a / 255.0f;
+					} else {
+						image[i + 0] = c.r;
+						image[i + 1] = c.g;
+						image[i + 2] = c.b;
+						image[i + 3] = c.a;
 					}
-				break;
-			default:
-				FREE(img.data);
-				ERROR("Invalid image format");
+				}
+			FREE(bitmap.data);
+
+			// set alloc functions for stbi
+			output_alloc = qr->alloc;
+			switch (opt.format) {
+				case OUTPUT_PNG:
+					stbi_write_png_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image, image_stride);
+					break;
+				case OUTPUT_BMP:
+					stbi_write_bmp_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image);
+					break;
+				case OUTPUT_TGA:
+					stbi_write_tga_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image);
+					break;
+				case OUTPUT_HDR:
+					stbi_write_hdr_to_func(write_data, fp, bitmap.size, bitmap.size, channels, (float *) image);
+					break;
+				case OUTPUT_JPG:
+					stbi_write_jpg_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image, 100);
+					break;
+				default:
+					ERROR("Invalid image format");
+			}
+			FREE(image);
 		}
 	} else {
 #define PRINT(...) fprintf(fp, __VA_ARGS__)
 		// output text
 		if (opt.format == OUTPUT_HTML) {
 			// HTML header
-			float perc = 100.0 / img.size;
+			float perc = 100.0 / bitmap.size;
 			perc = 20;
 			PRINT("<!DOCTYPE html><html><head><title>QR Code</title><style>\n");
 			PRINT("body {background-color:rgb(%u,%u,%u); color:rgb(%u,%u,%u); margin:0;}\n", opt.bg.r, opt.bg.g, opt.bg.b, opt.fg.r, opt.fg.g, opt.fg.b);
@@ -120,12 +163,12 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 		}
 		// loop pixels
 
-		for (pos.y = 0; pos.y < img.size; pos.y++) {
+		for (pos.y = 0; pos.y < bitmap.size; pos.y++) {
 			if (opt.format == OUTPUT_HTML)
 				PRINT("<tr>");
 
-			for (pos.x = 0; pos.x < img.size; pos.x++) {
-				bool bit = qr_output_read(img, pos);
+			for (pos.x = 0; pos.x < bitmap.size; pos.x++) {
+				bool bit = qr_output_read(bitmap, pos);
 				switch (opt.format) {
 					case OUTPUT_TEXT:
 						PRINT(bit ? "##" : "  ");
@@ -138,7 +181,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 						PRINT(bit ? "\u2588\u2588" : "  ");
 						break;
 					case OUTPUT_UNICODE2X:;
-						bool bit2 = qr_output_read(img, QR_POS(pos.x, pos.y + 1));
+						bool bit2 = qr_output_read(bitmap, QR_POS(pos.x, pos.y + 1));
 						PRINT(bit ? (bit2 ? "\u2588" : "\u2580") : (bit2 ? "\u2584" : " "));
 						break;
 					default:
@@ -161,7 +204,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 		}
 	}
 
-	FREE(img.data);
+	FREE(bitmap.data);
 
 	return true;
 }

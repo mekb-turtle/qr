@@ -271,10 +271,10 @@ static bool qr_post_encode(struct qr *qr, const char **error) {
 	// sanity checks
 	if (qr->encoding != ENC_NUMERIC && qr->encoding != ENC_ALPHANUMERIC && qr->encoding != ENC_BYTE && qr->encoding != ENC_KANJI) return false;
 
-#define ERROR(msg)                          \
-	{                                       \
-		*error = msg;                       \
-		return false;                       \
+#define ERROR(msg)    \
+	{                 \
+		*error = msg; \
+		return false; \
 	}
 	// TODO: add terminator and padding
 	// TODO: add error correction
