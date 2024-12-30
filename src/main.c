@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
 		eprintf("No text specified\n");
 		return 1;
 	}
-	if (optind != argc - 1 && invalid) {
+	if (optind != argc - 1 || invalid) {
 	invalid_syntax:
 		eprintf("Invalid usage, try --help\n");
 		return 1;

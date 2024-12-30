@@ -1,6 +1,5 @@
 #include "qr_table.h"
-const uint16_t character_capacity[QR_MAX_VERSION * QR_ECL_NUM][4] = {
-        // {Numeric, Alphanumeric, Byte, Kanji}
+const uint16_t character_capacity[QR_VERSION_NUM * QR_ECL_NUM][QR_MODE_NUM] = {
         {41,   25,   17,   10  },
         {34,   20,   14,   8   },
         {27,   16,   11,   7   },
@@ -162,8 +161,7 @@ const uint16_t character_capacity[QR_MAX_VERSION * QR_ECL_NUM][4] = {
         {3993, 2420, 1663, 1024},
         {3057, 1852, 1273, 784 },
 };
-const uint16_t error_correction[QR_MAX_VERSION * QR_ECL_NUM][5] = {
-        // {EC codeword per block, blocks 1, codeword per block 1, blocks 2, codeword per block 2}
+const struct ec_row error_correction[QR_VERSION_NUM * QR_ECL_NUM] = {
         {7,  1,  19,  0,  0  },
         {10, 1,  16,  0,  0  },
         {13, 1,  13,  0,  0  },

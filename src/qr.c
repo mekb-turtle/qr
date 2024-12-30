@@ -264,29 +264,62 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 	}
 
 #undef ERROR
+#undef ADD_BITS
 	return qr_post_encode(qr, error);
 }
 
 static bool qr_post_encode(struct qr *qr, const char **error) {
-	// sanity checks
-	if (qr->encoding != ENC_NUMERIC && qr->encoding != ENC_ALPHANUMERIC && qr->encoding != ENC_BYTE && qr->encoding != ENC_KANJI) return false;
-
-#define ERROR(msg)    \
-	{                 \
-		*error = msg; \
-		return false; \
+	struct bit_buffer *data = &qr->data;
+#define ERROR(msg)                  \
+	{                               \
+		*error = msg;               \
+		if (data) FREE(data->data); \
+		return false;               \
 	}
-	// TODO: add terminator and padding
+#define ADD_BITS(value, bits) \
+	if (!add_bits(data, value, bits)) ERROR("Failed to add bits");
+
+	const struct ec_row ec = error_correction[QR_ECL_NUM * (qr->version - 1) + qr->ecl];
+
+	uint16_t cw_total = ec.group1_cw * ec.group1_blocks + ec.group2_cw * ec.group2_blocks; // https://www.thonky.com/qr-code-tutorial/error-correction-table
+	uint16_t cw_total_bits = cw_total * 8;                                                 // total number of bits in the data
+
+	uint16_t data_bits = data->byte_index * 8 + data->bit_index;
+	if (data_bits > cw_total_bits) ERROR("Too much data, this should never happen");
+	uint16_t remainder = cw_total_bits - data_bits;
+	if (remainder > 4) remainder = 4; // max 4 zeroes
+
+	ADD_BITS(0, remainder); // add remaining zeroes
+
+	// pad to nearest byte
+	if (data->bit_index != 0) {
+		ADD_BITS(0, 8 - data->bit_index);
+	}
+
+	// sanity check
+	if (data->bit_index != 0) ERROR("Bit index should be 0");
+
+	// add pad bytes until length is met
+	for (uint8_t pulse = 1; data->byte_index < cw_total; pulse ^= 1) {
+		// add 0xec 0x11 pattern
+		((uint8_t *) data->data)[data->byte_index++] = pulse ? 0xec : 0x11;
+	}
+
+	// add error correction
+
 	// TODO: add error correction
-	// TODO: add remainder bits
-	// TODO: render QR code
+	// TODO: render bits into matrix
+	// TODO: mask the matrix
+	// TODO: add format and version information
+
+	// TODO: tests
 
 	(void) error;
-#undef ADD_BITS
 	return true;
 }
 
-#undef FREE
+#undef ERROR
+#undef ADD_BITS
 
 static bool qr_bitmap_offset(struct qr_bitmap output, struct qr_pos pos, size_t *byte, uint8_t *bit) {
 	// check if x and y are within bounds
@@ -325,12 +358,22 @@ bool qr_bitmap_read(struct qr_bitmap output, struct qr_pos pos) {
 }
 
 bool qr_render(struct qr *qr, const char **error) {
-	if (!qr_ensure_alloc(qr)) ERROR("Invalid allocator");
+	if (!qr_ensure_alloc(qr)) {
+		*error = "Invalid allocator";
+		return false;
+	}
 
 	if (qr->output.data) {
 		// free already allocated data
 		if (qr->alloc.free) qr->alloc.free(qr->output.data);
 		qr->output.data = NULL;
+	}
+
+#define ERROR(msg)             \
+	{                          \
+		*error = msg;          \
+		FREE(qr->output.data); \
+		return false;          \
 	}
 
 	// allocate memory for output

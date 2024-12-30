@@ -8,7 +8,11 @@
 
 #define QR_MIN_VERSION (1)
 #define QR_MAX_VERSION (40)
+
+#define QR_VERSION_NUM (QR_MAX_VERSION - QR_MIN_VERSION + 1)
 #define QR_ECL_NUM (4)
+#define QR_MODE_NUM (4)
+
 #define QR_SIZE(version) (17 + 4 * version)
 #define QR_DATA_SIZE(size) ((size * size + 7) / 8)
 
