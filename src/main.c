@@ -26,6 +26,8 @@ struct options {
 #define MODULE_SIZE_IMAGE_DEFAULT 8
 #define MODULE_SIZE_TEXT_DEFAULT 1
 
+void print_color_reason(enum parse_color_reason reason);
+
 int main(int argc, char *argv[]) {
 	const char *locale = setlocale(LC_ALL, "");
 	if (!locale) {
@@ -80,7 +82,7 @@ int main(int argc, char *argv[]) {
 \n\
 -B --background <color>\n\
 -F --foreground <color>\n\
-  Values: r,g,b\n\
+  Values: r,g,b or r,g,b,a\n\
 \n\
 -q --quiet <modules>: Margin around code in modules (default: %i)\n\
 -m --module <pixels>: Size of each module in pixels/characters (default: %i for image, %i for text)\n\
@@ -113,7 +115,6 @@ int main(int argc, char *argv[]) {
 						options.invert = true;
 						break;
 					case 'B':
-						printf("optarg: %s\n", optarg);
 						if (!optarg) invalid = true;
 						opt_background = optarg;
 						break;
@@ -197,9 +198,15 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (!parse_color_fallback(opt_background, options.format, &options.bg, (struct color){255, 255, 255})) goto invalid_syntax;
+	enum parse_color_reason reason;
 
-	if (!parse_color_fallback(opt_foreground, options.format, &options.fg, (struct color){0, 0, 0})) goto invalid_syntax;
+	reason = parse_color_fallback(opt_background, options.format, &options.bg, (struct color){255, 255, 255, 255});
+	print_color_reason(reason);
+	if (reason != COLOR_OK) return 1;
+
+	reason = parse_color_fallback(opt_foreground, options.format, &options.fg, (struct color){0, 0, 0, 255});
+	print_color_reason(reason);
+	if (reason != COLOR_OK) return 1;
 
 	if (opt_encoding) {
 		if (!parse_encoding(opt_encoding, &options.encoding)) goto invalid_syntax;
@@ -271,4 +278,20 @@ int main(int argc, char *argv[]) {
 
 	ret = 0; // success
 	goto qr_exit;
+}
+
+void print_color_reason(enum parse_color_reason reason) {
+	switch (reason) {
+		case COLOR_SYNTAX:
+			eprintf("Invalid color syntax\n");
+			break;
+		case COLOR_NO_COLOR:
+			eprintf("Color not supported for this format\n");
+			break;
+		case COLOR_NO_ALPHA:
+			eprintf("Alpha not supported for this format\n");
+			break;
+		case COLOR_OK:
+			break;
+	}
 }

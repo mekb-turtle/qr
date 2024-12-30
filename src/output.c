@@ -91,7 +91,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 					for (pos.x = 0; pos.x < img.size; pos.x++) {
 						struct color c = qr_output_read(img, pos) ? opt.fg : opt.bg;
 						// farbfeld uses BE 16-bit values for each channel
-						WRITE(((uint8_t[]){c.r, c.r, c.g, c.g, c.b, c.b, 0xFF, 0xFF}), 8);
+						WRITE(((uint8_t[]){c.r, c.r, c.g, c.g, c.b, c.b, c.a, c.a}), 8);
 					}
 				break;
 			default:

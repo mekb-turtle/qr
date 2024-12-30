@@ -89,33 +89,44 @@ bool parse_output_format(const char *str, enum output_format *format) {
 	return true;
 }
 
-bool parse_color_fallback(const char *str, enum output_format format, struct color *color, struct color fallback) {
+enum parse_color_reason parse_color_fallback(const char *str, enum output_format format, struct color *color, struct color fallback) {
 	if (str) return parse_color(str, format, color);
 
 	// use fallback color if no color was specified
 	if (OUTPUT_HAS_COLOR(format)) *color = fallback;
-	return true;
+	return COLOR_OK;
 }
 
-bool parse_color(const char *str, enum output_format format, struct color *out) {
-	if (!str || !*str) return false;
-	if (!OUTPUT_HAS_COLOR(format)) return false; // only image formats have colors
+enum parse_color_reason parse_color(const char *str, enum output_format format, struct color *out) {
+	if (!str || !*str) return COLOR_SYNTAX;
 	char *endptr = NULL;
 
 	struct color color;
+	bool alpha_set = false;
 
-	if (!parse_u8(str, &color.r, &endptr)) return false;
-	if (*endptr != ',') return false; // missing comma
+	if (!parse_u8(str, &color.r, &endptr)) return COLOR_SYNTAX;
+	if (*endptr != ',') return COLOR_SYNTAX; // missing comma
 
-	if (!parse_u8(endptr + 1, &color.g, &endptr)) return false;
-	if (*endptr != ',') return false; // missing comma
+	if (!parse_u8(endptr + 1, &color.g, &endptr)) return COLOR_SYNTAX;
+	if (*endptr != ',') return COLOR_SYNTAX; // missing comma
 
-	if (!parse_u8(endptr + 1, &color.b, &endptr)) return false;
-	if (*endptr) return false; // not all characters were consumed
+	if (!parse_u8(endptr + 1, &color.b, &endptr)) return COLOR_SYNTAX;
+
+	if (*endptr == ',') {
+		if (!parse_u8(endptr + 1, &color.a, &endptr)) return COLOR_SYNTAX;
+		alpha_set = true;
+	} else {
+		color.a = 0xFF;
+	}
+
+	if (*endptr) return COLOR_SYNTAX; // not all characters were consumed
+
+	if (!OUTPUT_HAS_COLOR(format)) return COLOR_NO_COLOR;              // only image formats have colors
+	if (alpha_set && !OUTPUT_HAS_ALPHA(format)) return COLOR_NO_ALPHA; // alpha is not supported for this format
 
 	*out = color;
 
-	return true;
+	return COLOR_OK;
 }
 
 bool parse_ecl(const char *str, enum qr_ecl *ecl) {
