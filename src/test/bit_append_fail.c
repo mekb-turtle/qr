@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
-#include "../src/util.h"
+#include "../libqr/util.h"
 #include "test.h"
 
 int main() {

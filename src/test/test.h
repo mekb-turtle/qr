@@ -25,10 +25,12 @@
 	{                                                                           \
 		if (actual op expected) {                                               \
 			printf("%sAssertion passed: ", LOC);                                \
-			printf(format " %s " format "\n", NUM(actual), #op, NUM(expected)); \
+			printf(format " %s " format " ... ", NUM(actual), #op, NUM(expected)); \
+			printf("%s %s %s\n", #actual, #op, #expected);                      \
 		} else {                                                                \
 			printf("%sAssertion failed: ", LOC);                                \
-			printf(format " %s " format "\n", NUM(actual), #op, NUM(expected)); \
+			printf(format " %s " format " ... ", NUM(actual), #op, NUM(expected)); \
+			printf("%s %s %s\n", #actual, #op, #expected);                      \
 			failure;                                                            \
 		}                                                                       \
 	}

@@ -2,8 +2,9 @@
 #include "arg.h"
 #include <stddef.h>
 #include <string.h>
-#include "qr.h"
 #include "stbi_write.h"
+
+#define ERR_ALLOC "Failed to allocate memory"
 
 #define FREE(ptr)                    \
 	{                                \

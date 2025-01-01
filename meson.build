@@ -5,30 +5,38 @@ project('qr', 'c',
 
 main_name = 'qr'
 
+libqr_d = 'src'/'libqr'
+cli_d = 'src'/'cli'
+test_d = 'src'/'test'
+
 # define source files
-src_main = files('src'/'main.c') # excluded for tests
-src = files('src'/'qr.c', 'src'/'qr.h', 'src'/'utf8.c', 'src'/'utf8.h', 'src'/'arg.c', 'src'/'arg.h', 'src'/'output.c', 'src'/'output.h', 'src'/'util.c', 'src'/'util.h', 'src'/'qr_table.c', 'src'/'qr_table.h', 'src'/'stbi_write.c', 'src'/'stbi_write.h')
-src_test = files() # included for tests only
+src_all = files() # included for all the following
+src_libqr = files(libqr_d/'qr.c', libqr_d/'qr.h', libqr_d/'util.c', libqr_d/'util.h', libqr_d/'qr_table.c', libqr_d/'qr_table.h', libqr_d/'utf8.c', libqr_d/'utf8.h', libqr_d/'gf256.c', libqr_d/'gf256.h')
+src_cli = files(cli_d/'main.c', cli_d/'arg.c', cli_d/'arg.h', cli_d/'output.c', cli_d/'output.h', cli_d/'stbi_write.c', cli_d/'stbi_write.h')
+src_test = files(test_d/'test.h') # included for tests only
 
 # define test files, these get compiled separately
 tests = [
-  { 'files': files('test'/'utf8.c') },
-  { 'files': files('test'/'utf8fail.c'), 'should_fail': true },
-  { 'files': files('test'/'bit_append.c') },
-  { 'files': files('test'/'bit_append_fail.c'), 'should_fail': true },
-  { 'files': files('test'/'endian.c') },
+  { 'files': files(test_d/'utf8.c') },
+  { 'files': files(test_d/'utf8fail.c'), 'should_fail': true },
+  { 'files': files(test_d/'bit_append.c') },
+  { 'files': files(test_d/'bit_append_fail.c'), 'should_fail': true },
+  { 'files': files(test_d/'endian.c') },
+  { 'files': files(test_d/'gf256.c') }
 ]
-
-# add custom binary/text files to be compiled into the binary
-bin = files()
 
 # define project metadata
 url = 'https://github.com/mekb-turtle/qr'
 name = meson.project_name()
 version = meson.project_version()
 
-dependencies = [
+dependencies_libqr = [
   dependency('iconv'),
+]
+dependencies_test = [
+
+] + dependencies_libqr
+dependencies_cli = [
 ]
 
 
@@ -41,16 +49,10 @@ add_project_arguments(
   f'-DPROJECT_URL="@url@"',
   language : 'c')
 
-# loop binary files
-foreach bin_file : bin
-  xxd = find_program('xxd')
-  src += custom_target(input: bin_file, command: [
-      xxd, '-i', '-n', '@PLAINNAME@', '@INPUT@', '@OUTPUT@'
-    ],
-    output: '@PLAINNAME@.c', install: false, build_by_default: true)
-endforeach
-
 fs = import('fs')
+
+# library
+libqr = library('QR', sources: src_all + src_libqr, include_directories: include_directories(libqr_d), install: true, dependencies: dependencies_libqr)
 
 # loop tests
 foreach test_ : tests
@@ -59,7 +61,7 @@ foreach test_ : tests
     test_name = test_['name'] # custom test name
   endif
 
-  test_exe = executable(test_name, sources: src + src_test + test_['files'], install: false, dependencies: dependencies)
+  test_exe = executable(test_name, sources: src_all + src_test + test_['files'], install: false, dependencies: dependencies_test, link_with: libqr)
 
   args = {}
   foreach key, val : test_
@@ -73,4 +75,4 @@ foreach test_ : tests
 endforeach
 
 # main executable
-exe = executable(main_name, sources: src + src_main, install: true, dependencies: dependencies)
+cli = executable(main_name, sources: src_all + src_cli, install: true, dependencies: dependencies_cli, link_with: libqr)

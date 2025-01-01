@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
-#include "../src/util.h"
+#include "../libqr/util.h"
 #include "test.h"
 
 static void print_bits(uint8_t *data, size_t len) {

@@ -2,6 +2,7 @@
 // #define DEBUG
 #ifdef DEBUG
 #include <stdio.h>
+#define eprintf(...) fprintf(stderr, __VA_ARGS__)
 #endif
 
 // add bits to buffer

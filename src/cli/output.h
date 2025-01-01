@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include "qr.h"
+#include "../libqr/qr.h"
 
 #define QUIET_ZONE_DEFAULT (4)
 

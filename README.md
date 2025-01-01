@@ -18,6 +18,10 @@ This is a simple QR code generator written in C. It reads a string from argument
 - Mode detection (numeric, alphanumeric, binary, kanji)
 - Auto version selection
 - Custom fg/bg color
+- Supported output formats:
+  - Image: PNG, BMP, Targa, HDR, JPEG, [farbfeld](https://tools.suckless.org/farbfeld/)
+  - Text (using Unicode block characters)
+  - HTML
 
 ## Dependencies
 - `iconv` (glibc)

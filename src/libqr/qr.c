@@ -4,6 +4,9 @@
 #include "utf8.h"
 #include "util.h"
 #include "qr_table.h"
+#include "gf256.h"
+
+#define ERR_ALLOC "Failed to allocate memory"
 
 #define FREE(ptr)                    \
 	{                                \
@@ -297,15 +300,30 @@ static bool qr_post_encode(struct qr *qr, const char **error) {
 	}
 
 	// sanity check
-	if (data->bit_index != 0) ERROR("Bit index should be 0");
+	if (data->bit_index != 0) ERROR("Bit index is not 0, this should never happen");
+
+		// from now on, we are only adding full bytes
+#define ADD_BYTE(byte)                                          \
+	if (data->byte_index >= data->size) ERROR("Data overflow"); \
+	((uint8_t *) data->data)[data->byte_index++] = byte;
 
 	// add pad bytes until length is met
 	for (uint8_t pulse = 1; data->byte_index < cw_total; pulse ^= 1) {
 		// add 0xec 0x11 pattern
-		((uint8_t *) data->data)[data->byte_index++] = pulse ? 0xec : 0x11;
+		ADD_BYTE(pulse ? 0xec : 0x11);
 	}
 
 	// add error correction
+	uint8_t *ec_data = data->data;
+	for (uint8_t i = 0; i < ec.group1_blocks; ++i) {
+		// ADD_POLY(ec_data, ec.group1_cw);
+		ec_data += ec.group1_cw;
+	}
+	for (uint8_t i = 0; i < ec.group2_blocks; ++i) {
+		// ADD_POLY(ec_data, ec.group2_cw);
+		ec_data += ec.group2_cw;
+	}
+	gf256_init();
 
 	// TODO: add error correction
 	// TODO: render bits into matrix

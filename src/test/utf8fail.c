@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "../src/utf8.h"
+#include "../libqr/utf8.h"
 #include "test.h"
 
 int main() {

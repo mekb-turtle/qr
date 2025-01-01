@@ -1,5 +1,5 @@
-#ifndef QR_H
-#define QR_H
+#ifndef LIBQR_QR_H
+#define LIBQR_QR_H
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -83,4 +83,4 @@ bool qr_bitmap_read(struct qr_bitmap output, struct qr_pos pos);
 
 // frees the QR code
 void qr_close(struct qr *qr);
-#endif // QR_H
+#endif // LIBQR_QR_H

@@ -7,10 +7,11 @@
 #include <locale.h>
 #include <langinfo.h>
 #include <unistd.h>
-#include "qr.h"
+#include "../libqr/qr.h"
 #include "arg.h"
 #include "output.h"
-#include "util.h"
+
+#define eprintf(...) fprintf(stderr, __VA_ARGS__)
 
 struct options {
 	bool invert;

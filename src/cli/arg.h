@@ -2,7 +2,7 @@
 #define ARG_H
 #include <stdint.h>
 #include <stdbool.h>
-#include "qr.h"
+#include "../libqr/qr.h"
 #include "output.h"
 
 #define PARSE_FUNC(name, type, min, max, signed) \
