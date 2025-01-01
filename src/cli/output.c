@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <string.h>
 #include "stbi_write.h"
+#include "endian.h"
 
 #define ERR_ALLOC "Failed to allocate memory"
 

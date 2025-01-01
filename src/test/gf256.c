@@ -8,6 +8,8 @@ uint8_t log_table_[255] = {0, 0, 1, 25, 2, 50, 26, 198, 3, 223, 51, 238, 27, 104
 
 uint8_t exp_table_[255] = {1, 2, 4, 8, 16, 32, 64, 128, 29, 58, 116, 232, 205, 135, 19, 38, 76, 152, 45, 90, 180, 117, 234, 201, 143, 3, 6, 12, 24, 48, 96, 192, 157, 39, 78, 156, 37, 74, 148, 53, 106, 212, 181, 119, 238, 193, 159, 35, 70, 140, 5, 10, 20, 40, 80, 160, 93, 186, 105, 210, 185, 111, 222, 161, 95, 190, 97, 194, 153, 47, 94, 188, 101, 202, 137, 15, 30, 60, 120, 240, 253, 231, 211, 187, 107, 214, 177, 127, 254, 225, 223, 163, 91, 182, 113, 226, 217, 175, 67, 134, 17, 34, 68, 136, 13, 26, 52, 104, 208, 189, 103, 206, 129, 31, 62, 124, 248, 237, 199, 147, 59, 118, 236, 197, 151, 51, 102, 204, 133, 23, 46, 92, 184, 109, 218, 169, 79, 158, 33, 66, 132, 21, 42, 84, 168, 77, 154, 41, 82, 164, 85, 170, 73, 146, 57, 114, 228, 213, 183, 115, 230, 209, 191, 99, 198, 145, 63, 126, 252, 229, 215, 179, 123, 246, 241, 255, 227, 219, 171, 75, 150, 49, 98, 196, 149, 55, 110, 220, 165, 87, 174, 65, 130, 25, 50, 100, 200, 141, 7, 14, 28, 56, 112, 224, 221, 167, 83, 166, 81, 162, 89, 178, 121, 242, 249, 239, 195, 155, 43, 86, 172, 69, 138, 9, 18, 36, 72, 144, 61, 122, 244, 245, 247, 243, 251, 235, 203, 139, 11, 22, 44, 88, 176, 125, 250, 233, 207, 131, 27, 54, 108, 216, 173, 71, 142};
 
+bool verify_gf256_poly_div(uint8_t *message, size_t message_len, uint8_t *expected, uint8_t error_cw);
+
 int main() {
 	int ret = 0;
 
@@ -26,20 +28,36 @@ int main() {
 	ASSERT(TO_VALUE(5), ==, 32, FMT_INT, ret = 1);
 
 #define LEN(x) (sizeof(x) / sizeof(x[0]))
-	uint8_t message[] = {32, 91, 11, 120, 209, 114, 220, 77, 67, 64, 236, 17, 236};
-	uint8_t error_cw = 10;
+	// see https://www.thonky.com/qr-code-tutorial/show-division-steps for test data
+	{
+		uint8_t message[] = {32, 91, 11, 120, 209, 114, 220, 77, 67, 64, 236, 17, 236};
+		uint8_t expected[] = {87, 86, 68, 17, 99, 235, 189, 232, 98, 195};
+		if (!verify_gf256_poly_div(message, LEN(message), expected, LEN(expected))) ret = 1;
+	}
+	{
+		uint8_t message[] = {220, 79, 232, 132, 52, 13, 226, 69, 250, 9, 41, 212, 126, 67, 43, 71, 239, 198, 75, 133};
+		uint8_t expected[] = {8, 146, 172, 102, 185, 11, 228, 239, 93, 100, 66, 28, 58, 203, 166};
+		if (!verify_gf256_poly_div(message, LEN(message), expected, LEN(expected))) ret = 1;
+	}
+	{
+		uint8_t message[] = {55, 3, 136, 81, 18, 25, 90, 190, 166, 73, 179, 132, 116, 7, 70, 215, 160, 110, 18, 214, 105, 179, 136, 137, 48, 22, 148, 204, 210, 191};
+		uint8_t expected[] = {166, 243, 176, 101, 231, 51, 173, 125, 131, 157, 184, 91, 246, 34, 89, 190, 17, 85, 142, 226, 134, 50, 225, 200, 22, 227, 119, 135};
+		if (!verify_gf256_poly_div(message, LEN(message), expected, LEN(expected))) ret = 1;
+	}
+	return ret;
+}
+
+bool verify_gf256_poly_div(uint8_t *message, size_t message_len, uint8_t *expected, uint8_t error_cw) {
 	uint8_t out[error_cw];
 
-	bool success = gf256_encode(message, LEN(message), error_cw, out);
+	bool success = gf256_poly_div(message, message_len, error_cw, out);
 
-	ASSERT(success, ==, true, FMT_INT, ret = 1);
-	if (!success) return ret;
+	ASSERT(success, ==, true, FMT_INT, return false);
 
-	uint8_t expected[] = {87, 86, 68, 17, 99, 235, 189, 232, 98, 195};
-	ASSERT(error_cw, ==, LEN(expected), FMT_INT, ret = 1);
+	bool ret = true;
 	for (size_t i = 0; i < error_cw; i++) {
-		if (i >= LEN(expected)) break;
-		ASSERT(out[i], ==, expected[i], FMT_INT, ret = 1);
+		if (i >= error_cw) break;
+		ASSERT(out[i], ==, expected[i], FMT_INT, ret = false);
 	}
 
 	return ret;

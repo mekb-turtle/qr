@@ -2,9 +2,13 @@
 #include <string.h>
 #include <iconv.h>
 #include "utf8.h"
-#include "util.h"
+#include "bit_buffer.h"
 #include "qr_table.h"
 #include "gf256.h"
+
+#define STR_(x) #x
+#define STR(x) STR_(x)
+#define LINE_STR "Line " STR(__LINE__)
 
 #define ERR_ALLOC "Failed to allocate memory"
 
@@ -41,6 +45,8 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 	}
 
 	qr_close(qr);
+
+	memset(qr, 0, sizeof(*qr)); // zero out the struct, prevents UB later on
 
 	qr->alloc = alloc;
 	if (!qr_ensure_alloc(qr)) ERROR("Invalid allocator");
@@ -164,7 +170,7 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 	if (qr->version > QR_MAX_VERSION) ERROR("Invalid version");
 
 	// find the smallest version that can fit the data
-	while (qr->version < QR_MIN_VERSION || character_capacity[4 * (qr->version - 1) + qr->ecl][qr->encoding] < qr->char_count) {
+	while (qr->version < QR_MIN_VERSION || character_capacity[4 * (qr->version - 1) + qr->ecl][qr->encoding - 1] < qr->char_count) {
 		++qr->version;
 		if (qr->version > QR_MAX_VERSION) ERROR("Too much data");
 	}
@@ -197,10 +203,10 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 
 		// helper macro to add bits to new_data
 #define ADD_BITS(value, bits) \
-	if (!add_bits(new_data, value, bits)) ERROR("Failed to add bits");
+	if (!add_bits(new_data, value, bits)) ERROR("Failed to add bits: " LINE_STR);
 
 	// add mode indicator
-	ADD_BITS(encoding_bits[qr->encoding], 4);
+	ADD_BITS(encoding_bits[qr->encoding - 1], 4);
 
 	// add character count indicator
 	ADD_BITS(qr->char_count, count_bits);
@@ -272,22 +278,22 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 }
 
 static bool qr_post_encode(struct qr *qr, const char **error) {
-	struct bit_buffer *data = &qr->data;
-#define ERROR(msg)                  \
-	{                               \
-		*error = msg;               \
-		if (data) FREE(data->data); \
-		return false;               \
+#define ERROR(msg)           \
+	{                        \
+		*error = msg;        \
+		FREE(qr->data.data); \
+		return false;        \
 	}
 #define ADD_BITS(value, bits) \
-	if (!add_bits(data, value, bits)) ERROR("Failed to add bits");
+	if (!add_bits(&qr->data, value, bits)) ERROR("Failed to add bits: " LINE_STR);
 
 	const struct ec_row ec = error_correction[QR_ECL_NUM * (qr->version - 1) + qr->ecl];
 
+	// cw = codeword
 	uint16_t cw_total = ec.group1_cw * ec.group1_blocks + ec.group2_cw * ec.group2_blocks; // https://www.thonky.com/qr-code-tutorial/error-correction-table
 	uint16_t cw_total_bits = cw_total * 8;                                                 // total number of bits in the data
 
-	uint16_t data_bits = data->byte_index * 8 + data->bit_index;
+	uint16_t data_bits = qr->data.byte_index * 8 + qr->data.bit_index;
 	if (data_bits > cw_total_bits) ERROR("Too much data, this should never happen");
 	uint16_t remainder = cw_total_bits - data_bits;
 	if (remainder > 4) remainder = 4; // max 4 zeroes
@@ -295,37 +301,113 @@ static bool qr_post_encode(struct qr *qr, const char **error) {
 	ADD_BITS(0, remainder); // add remaining zeroes
 
 	// pad to nearest byte
-	if (data->bit_index != 0) {
-		ADD_BITS(0, 8 - data->bit_index);
+	if (qr->data.bit_index != 0) {
+		ADD_BITS(0, 8 - qr->data.bit_index);
 	}
 
-	// sanity check
-	if (data->bit_index != 0) ERROR("Bit index is not 0, this should never happen");
+#undef ADD_BITS
 
-		// from now on, we are only adding full bytes
-#define ADD_BYTE(byte)                                          \
-	if (data->byte_index >= data->size) ERROR("Data overflow"); \
-	((uint8_t *) data->data)[data->byte_index++] = byte;
+	// sanity check
+	if (qr->data.bit_index != 0) ERROR("Bit index is not 0, this should never happen");
 
 	// add pad bytes until length is met
-	for (uint8_t pulse = 1; data->byte_index < cw_total; pulse ^= 1) {
+	for (uint8_t pulse = 1; qr->data.byte_index < cw_total; pulse ^= 1) {
+		if (qr->data.byte_index >= qr->data.size) ERROR("Byte index overflow");
 		// add 0xec 0x11 pattern
-		ADD_BYTE(pulse ? 0xec : 0x11);
+		((uint8_t *) qr->data.data)[qr->data.byte_index++] = pulse ? 0xec : 0x11;
 	}
 
 	// add error correction
-	uint8_t *ec_data = data->data;
+
+	// hierarchy: groups -> blocks -> codewords (aka cw or bytes)
+	size_t blocks_len = (size_t) ec.group1_blocks + ec.group2_blocks;
+
+	size_t ec_blocks_len = blocks_len * ec.ec_per_block;
+	uint8_t *ec_blocks = qr->alloc.malloc(ec_blocks_len);
+	if (!ec_blocks) ERROR(ERR_ALLOC);
+	memset(ec_blocks, 0, ec_blocks_len);
+
+#undef ERROR
+	qr->data_i.data = NULL;
+	// free ec_blocks if error
+#define ERROR(msg)             \
+	{                          \
+		*error = msg;          \
+		FREE(ec_blocks);       \
+		FREE(qr->data.data);   \
+		FREE(qr->data_i.data); \
+		return false;          \
+	}
+
+	gf256_init();
+	size_t j = 0;
+#define ERR_POLY "Failed to calculate error correction data"
+	uint8_t *buf = qr->data.data;
 	for (uint8_t i = 0; i < ec.group1_blocks; ++i) {
-		// ADD_POLY(ec_data, ec.group1_cw);
-		ec_data += ec.group1_cw;
+		if (!gf256_poly_div(buf, ec.group1_cw, ec.ec_per_block, &ec_blocks[j])) ERROR(ERR_POLY);
+		buf += ec.group1_cw;
+		j += ec.ec_per_block;
 	}
 	for (uint8_t i = 0; i < ec.group2_blocks; ++i) {
-		// ADD_POLY(ec_data, ec.group2_cw);
-		ec_data += ec.group2_cw;
+		if (!gf256_poly_div(buf, ec.group2_cw, ec.ec_per_block, &ec_blocks[j])) ERROR(ERR_POLY);
+		buf += ec.group2_cw;
+		j += ec.ec_per_block;
 	}
-	gf256_init();
 
-	// TODO: add error correction
+	// allocate memory for interleaved data
+	qr->data_i.size = cw_total + ec_blocks_len + 1; // +1 for remainder bits
+	qr->data_i.data = qr->alloc.malloc(qr->data_i.size);
+	if (!qr->data_i.data) ERROR(ERR_ALLOC);
+
+	buf = qr->data.data;
+
+	// interleave data
+
+// helper macro to add codewords to data_i
+#define ADD_CW(cw)                                                                       \
+	{                                                                                    \
+		if (qr->data_i.byte_index >= qr->data_i.size) ERROR("Data overflow: " LINE_STR); \
+		((uint8_t *) qr->data_i.data)[qr->data_i.byte_index++] = cw;                     \
+	}
+	j = 0;
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+	// add data codewords
+	uint8_t *group1 = &buf[0];
+	uint8_t *group2 = &buf[ec.group1_blocks * ec.group1_cw];
+	for (size_t cw = 0; cw < MAX(ec.group1_cw, ec.group2_cw); ++cw) {
+		// loop blocks from first group
+		if (cw < ec.group1_cw)
+			for (size_t block = 0; block < ec.group1_blocks; ++block) {
+				ADD_CW(group1[cw + ec.group1_cw * block]);
+			}
+		// loop blocks from second group
+		if (cw < ec.group2_cw)
+			for (size_t block = 0; block < ec.group2_blocks; ++block) {
+				ADD_CW(group2[cw + ec.group2_cw * block]);
+			}
+	}
+
+	// add ec codewords
+	group1 = &ec_blocks[0];
+	group2 = &ec_blocks[ec.group1_blocks * ec.ec_per_block];
+	for (size_t cw = 0; cw < ec.ec_per_block; ++cw) {
+		// loop blocks from first group
+		for (size_t block = 0; block < ec.group1_blocks; ++block) {
+			ADD_CW(group1[cw + ec.ec_per_block * block]);
+		}
+		// loop blocks from second group
+		for (size_t block = 0; block < ec.group2_blocks; ++block) {
+			ADD_CW(group2[cw + ec.ec_per_block * block]);
+		}
+	}
+
+	FREE(ec_blocks);
+
+	// add remainder bits
+	if (!add_bits(&qr->data_i, 0, remainder_bits[qr->version - 1])) ERROR("Failed to add remainder bits");
+
 	// TODO: render bits into matrix
 	// TODO: mask the matrix
 	// TODO: add format and version information
@@ -413,12 +495,7 @@ bool qr_render(struct qr *qr, const char **error) {
 }
 
 void qr_close(struct qr *qr) {
-	// free internal data
-	if (qr->free_data && qr->alloc.free) qr->alloc.free(qr->free_data);
-	if (qr->data.data == qr->free_data) qr->data.data = NULL;
-	qr->free_data = NULL;
-
-	// free output data
-	if (qr->output.data && qr->alloc.free) qr->alloc.free(qr->output.data);
-	qr->output.data = NULL;
+	FREE(qr->data.data);
+	FREE(qr->data_i.data);
+	FREE(qr->output.data);
 }

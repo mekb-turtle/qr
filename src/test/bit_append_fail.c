@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
-#include "../libqr/util.h"
+#include "../libqr/bit_buffer.h"
 #include "test.h"
 
 int main() {

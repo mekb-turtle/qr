@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <limits.h>
-#include "util.h"
+#include "bit_buffer.h"
 
 #define QR_MIN_VERSION (1)
 #define QR_MAX_VERSION (40)
@@ -55,13 +55,12 @@ struct qr {
 
 	uint8_t version; // QR code version, 1-40
 
-	struct bit_buffer data; // data encoded in the QR code
+	struct bit_buffer data;   // data encoded in the QR code
+	struct bit_buffer data_i; // interleaved data, ready for rendering into modules
 
 	size_t char_count; // number of characters in the data
 
 	struct qr_alloc alloc;
-
-	void *free_data; // internal data created by qr_init that needs to be freed
 
 	struct qr_bitmap {
 		void *data;       // one bit = one module
@@ -74,7 +73,7 @@ struct qr {
 // qr MUST be zeroed out at least once before calling this function
 bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum qr_encoding encoding, uint8_t version, enum qr_ecl ecl, const char **error);
 
-// generates QR code
+// renders QR code into modules
 bool qr_render(struct qr *qr, const char **error);
 
 // read/write a module from the QR code

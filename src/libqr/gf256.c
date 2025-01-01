@@ -34,13 +34,11 @@ uint8_t gf256_add(uint8_t a, uint8_t b) {
 	return a ^ b; // xor
 }
 
-bool gf256_encode(uint8_t *message, size_t message_len, uint8_t error_cw, uint8_t *out) {
+bool gf256_poly_div(uint8_t *message, size_t message_len, uint8_t error_cw, uint8_t *out) {
 	if (error_cw > GF256_MAX_ERROR_CW || error_cw < GF256_MIN_ERROR_CW) return false;
 
 	const uint8_t *generator = generator_polynomials[error_cw];
 	if (!generator) return false;
-
-	gf256_init();
 
 	size_t len = message_len + error_cw;
 

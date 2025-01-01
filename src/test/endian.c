@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
-#include "../libqr/util.h"
+#include "../cli/endian.h"
 #include "test.h"
 
 int main() {
