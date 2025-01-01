@@ -355,6 +355,8 @@ static bool qr_post_encode(struct qr *qr, const char **error) {
 	}
 
 	// allocate memory for interleaved data
+	qr->data_i.byte_index = 0;
+	qr->data_i.bit_index = 0;
 	qr->data_i.size = cw_total + ec_blocks_len + 1; // +1 for remainder bits
 	qr->data_i.data = qr->alloc.malloc(qr->data_i.size);
 	if (!qr->data_i.data) ERROR(ERR_ALLOC);
