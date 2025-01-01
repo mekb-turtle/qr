@@ -42,8 +42,8 @@ int main() {
 
 #define ADD_BITS                            \
 	{                                       \
-		if (!add_bits(&buf, value, bits)) { \
-			FAIL("add_bits");               \
+		if (!bit_buffer_add_bits(&buf, value, bits)) { \
+			FAIL("bit_buffer_add_bits");               \
 			ret = 1;                        \
 		}                                   \
 	}

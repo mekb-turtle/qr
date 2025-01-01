@@ -1,5 +1,5 @@
-#ifndef LIBQR_UTIL_H
-#define LIBQR_UTIL_H
+#ifndef LIBQR_BIT_BUFFER_H
+#define LIBQR_BIT_BUFFER_H
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -11,5 +11,5 @@ struct bit_buffer {
 	uint8_t bit_index;
 };
 
-bool add_bits(struct bit_buffer *buf, uint32_t value, uint8_t bits);
-#endif // LIBQR_UTIL_H
+bool bit_buffer_add_bits(struct bit_buffer *buf, uint32_t value, uint8_t bits);
+#endif // LIBQR_BIT_BUFFER_H

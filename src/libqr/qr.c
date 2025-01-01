@@ -5,32 +5,14 @@
 #include "bit_buffer.h"
 #include "qr_table.h"
 #include "gf256.h"
-
-#define STR_(x) #x
-#define STR(x) STR_(x)
-#define LINE_STR "Line " STR(__LINE__)
+#include "util.h"
 
 #define ERR_ALLOC "Failed to allocate memory"
-
-#define FREE(ptr)                    \
-	{                                \
-		if (qr->alloc.free && ptr) { \
-			qr->alloc.free(ptr);     \
-		}                            \
-		ptr = NULL;                  \
-	}
 
 static bool qr_post_encode(struct qr *qr, const char **error);
 
 // numeric, alphanumeric, byte, kanji
 static uint8_t encoding_bits[4] = {1, 2, 4, 8};
-
-static bool qr_ensure_alloc(struct qr *qr) {
-	if (!qr->alloc.malloc) return false;
-	if (!qr->alloc.realloc) return false;
-	if (!qr->alloc.free) return false;
-	return true;
-}
 
 bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, enum qr_encoding encoding, uint8_t version, enum qr_ecl ecl, const char **error) {
 	// pointers to simplify error handling
@@ -49,7 +31,7 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 	memset(qr, 0, sizeof(*qr)); // zero out the struct, prevents UB later on
 
 	qr->alloc = alloc;
-	if (!qr_ensure_alloc(qr)) ERROR("Invalid allocator");
+	if (!QR_ENSURE_ALLOC(qr)) ERROR("Invalid allocator");
 
 	qr->encoding = encoding;
 	qr->version = version;
@@ -203,7 +185,7 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 
 		// helper macro to add bits to new_data
 #define ADD_BITS(value, bits) \
-	if (!add_bits(new_data, value, bits)) ERROR("Failed to add bits: " LINE_STR);
+	if (!bit_buffer_add_bits(new_data, value, bits)) ERROR("Failed to add bits: " LINE_STR);
 
 	// add mode indicator
 	ADD_BITS(encoding_bits[qr->encoding - 1], 4);
@@ -269,7 +251,7 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 			break;
 
 		default:
-			return false;
+			ERROR("Invalid encoding");
 	}
 
 #undef ERROR
@@ -284,8 +266,9 @@ static bool qr_post_encode(struct qr *qr, const char **error) {
 		FREE(qr->data.data); \
 		return false;        \
 	}
+	if (!QR_ENSURE_ALLOC(qr)) ERROR("Invalid allocator");
 #define ADD_BITS(value, bits) \
-	if (!add_bits(&qr->data, value, bits)) ERROR("Failed to add bits: " LINE_STR);
+	if (!bit_buffer_add_bits(&qr->data, value, bits)) ERROR("Failed to add bits: " LINE_STR);
 
 	const struct ec_row ec = error_correction[QR_ECL_NUM * (qr->version - 1) + qr->ecl];
 
@@ -373,8 +356,6 @@ static bool qr_post_encode(struct qr *qr, const char **error) {
 	}
 	j = 0;
 
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-
 	// add data codewords
 	uint8_t *group1 = &buf[0];
 	uint8_t *group2 = &buf[ec.group1_blocks * ec.group1_cw];
@@ -408,13 +389,7 @@ static bool qr_post_encode(struct qr *qr, const char **error) {
 	FREE(ec_blocks);
 
 	// add remainder bits
-	if (!add_bits(&qr->data_i, 0, remainder_bits[qr->version - 1])) ERROR("Failed to add remainder bits");
-
-	// TODO: render bits into matrix
-	// TODO: mask the matrix
-	// TODO: add format and version information
-
-	// TODO: tests
+	if (!bit_buffer_add_bits(&qr->data_i, 0, remainder_bits[qr->version - 1])) ERROR("Failed to add remainder bits");
 
 	(void) error;
 	return true;
@@ -457,43 +432,6 @@ bool qr_bitmap_read(struct qr_bitmap output, struct qr_pos pos) {
 
 	// get bit
 	return ((const uint8_t *) output.data)[byte] & bit;
-}
-
-bool qr_render(struct qr *qr, const char **error) {
-	if (!qr_ensure_alloc(qr)) {
-		*error = "Invalid allocator";
-		return false;
-	}
-
-	if (qr->output.data) {
-		// free already allocated data
-		if (qr->alloc.free) qr->alloc.free(qr->output.data);
-		qr->output.data = NULL;
-	}
-
-#define ERROR(msg)             \
-	{                          \
-		*error = msg;          \
-		FREE(qr->output.data); \
-		return false;          \
-	}
-
-	// allocate memory for output
-	qr->output.size = QR_SIZE(qr->version);
-	qr->output.data_size = QR_DATA_SIZE(qr->output.size); // 1 bit per module
-	// max size is 3917 bytes
-	qr->output.data = qr->alloc.malloc(qr->output.data_size);
-	if (!qr->output.data) return false;
-
-	// clear output
-	memset(qr->output.data, 0, qr->output.data_size);
-
-	// test
-	qr_bitmap_write(&qr->output, QR_POS(0, 0), true);
-	qr_bitmap_write(&qr->output, QR_POS(0, qr->output.size - 1), true);
-	qr_bitmap_write(&qr->output, QR_POS(qr->output.size - 1, 0), true);
-
-	return true;
 }
 
 void qr_close(struct qr *qr) {

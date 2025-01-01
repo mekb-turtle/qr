@@ -6,7 +6,7 @@
 #endif
 
 // add bits to buffer
-bool add_bits(struct bit_buffer *buf, uint32_t value, uint8_t bits) {
+bool bit_buffer_add_bits(struct bit_buffer *buf, uint32_t value, uint8_t bits) {
 #ifdef DEBUG
 	eprintf("Adding %u bits to %p: ", bits, (void *) buf);
 	for (uint8_t i = 0; i < bits; ++i) {

@@ -20,6 +20,12 @@ void write_data(void *context, void *data, int size) {
 }
 
 bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, const char **error) {
+	if (opt.format == OUTPUT_UNICODE2X && opt.module_size % 2 == 0) {
+		// save space
+		opt.module_size /= 2;
+		opt.format = OUTPUT_UNICODE;
+	}
+
 	struct qr_bitmap bitmap;
 	bitmap.data = NULL;
 	uint8_t *image = NULL;

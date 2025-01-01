@@ -11,7 +11,7 @@ test_d = 'src'/'test'
 
 # define source files
 src_all = files() # included for all the following
-src_libqr = files(libqr_d/'qr.c', libqr_d/'qr.h', libqr_d/'bit_buffer.c', libqr_d/'bit_buffer.h', libqr_d/'qr_table.c', libqr_d/'qr_table.h', libqr_d/'utf8.c', libqr_d/'utf8.h', libqr_d/'gf256.c', libqr_d/'gf256.h')
+src_libqr = files(libqr_d/'qr.c', libqr_d/'qr.h', libqr_d/'bit_buffer.c', libqr_d/'bit_buffer.h', libqr_d/'qr_table.c', libqr_d/'qr_table.h', libqr_d/'utf8.c', libqr_d/'utf8.h', libqr_d/'gf256.c', libqr_d/'gf256.h', libqr_d/'qr_render.c', libqr_d/'qr_render.h')
 src_cli = files(cli_d/'main.c', cli_d/'arg.c', cli_d/'arg.h', cli_d/'output.c', cli_d/'output.h', cli_d/'stbi_write.c', cli_d/'stbi_write.h', cli_d/'endian.c', cli_d/'endian.h')
 src_test = files(test_d/'test.h') # included for tests only
 
@@ -24,6 +24,7 @@ tests = [
   { 'files': files(test_d/'endian.c'), 'src': files(cli_d/'endian.c', cli_d/'endian.h') },
   { 'files': files(test_d/'gf256.c') },
   { 'files': files(test_d/'qr_encode.c') },
+  { 'files': files(test_d/'alignment.c') },
 ]
 
 # define project metadata

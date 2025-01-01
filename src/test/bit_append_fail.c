@@ -17,11 +17,11 @@ int main() {
 	uint8_t bits = 9;
 
 	// not enough space in buffer
-	if (add_bits(&buf, value, bits)) {
-		UNEXPECTED_PASS("add_bits");
+	if (bit_buffer_add_bits(&buf, value, bits)) {
+		UNEXPECTED_PASS("bit_buffer_add_bits");
 		ret = 0;
 	}
-	EXPECTED_FAIL("add_bits");
+	EXPECTED_FAIL("bit_buffer_add_bits");
 
 	buf.size = 0;
 	buf.byte_index = 0;
@@ -31,11 +31,11 @@ int main() {
 	value = 0x55;
 	bits = 7;
 
-	if (add_bits(&buf, value, bits)) {
-		UNEXPECTED_PASS("add_bits");
+	if (bit_buffer_add_bits(&buf, value, bits)) {
+		UNEXPECTED_PASS("bit_buffer_add_bits");
 		ret = 0;
 	}
-	EXPECTED_FAIL("add_bits");
+	EXPECTED_FAIL("bit_buffer_add_bits");
 
 	return ret;
 }
