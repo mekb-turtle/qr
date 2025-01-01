@@ -1,5 +1,4 @@
 <div align="center">
-    <img alt="Image" src="assets/icon.png" width="128"/>
     <h3 align="center">QR code generator</h3>
     <img alt="Version" src="https://img.shields.io/github/v/release/mekb-turtle/qr?style=flat&logoColor=f5c2e7&labelColor=1e1e2e&color=f5c2e7" />
     <img alt="Stars" src="https://img.shields.io/github/stars/mekb-turtle/qr?style=flat&logoColor=f5c2e7&labelColor=1e1e2e&color=f5c2e7" />
