@@ -69,47 +69,49 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 
 
 	// use iconv to detect if kanji mode can be used
-	iconv_t cd = iconv_open("SHIFT_JIS//TRANSLIT", "UTF-8"); // enable transliteration
-	if (cd == (iconv_t) -1) ERROR("Failed to open iconv");
+	if (qr->char_count > 0) {
+		iconv_t cd = iconv_open("SHIFT_JIS//TRANSLIT", "UTF-8"); // enable transliteration
+		if (cd == (iconv_t) -1) ERROR("Failed to open iconv");
 
-	size_t kanji_size = qr->char_count * 2; // worst case scenario but we can realloc later
-	kanji_data = qr->alloc.malloc(kanji_size);
-	if (!kanji_data) {
-		iconv_close(cd);
-		ERROR(ERR_ALLOC);
-	} else {
-		// initialise variables for iconv
-		const uint8_t *data_tmp = data;
-		const uint8_t *kanji_data_tmp = kanji_data;
-		size_t in_size = num_bytes, out_size = kanji_size;
-		size_t iconv_ret = iconv(cd, (char **) &data_tmp, &in_size, (char **) &kanji_data_tmp, &out_size);
-		if (iconv_ret == (size_t) -1 || kanji_data_tmp < kanji_data) {
-			FREE(kanji_data);
-			kanji = false; // not possible
+		size_t kanji_size = qr->char_count * 2; // worst case scenario but we can realloc later
+		kanji_data = qr->alloc.malloc(kanji_size);
+		if (!kanji_data) {
+			iconv_close(cd);
+			ERROR(ERR_ALLOC);
 		} else {
-			kanji_size = kanji_data_tmp - kanji_data; // iconv increments the pointer, so we can calculate the new size using this
-			if (qr->alloc.realloc)
-				kanji_data = qr->alloc.realloc(kanji_data, kanji_size); // shrink to fit
-		}
-	}
-	iconv_close(cd);
-
-	if (kanji) {
-		// verify the data is entirely double-byte kanji characters
-		for (size_t i = 0; i < kanji_size; i += 2) {
-			// check first byte
-			if (kanji_data[i] < 0x81 || (kanji_data[i] > 0x9f && kanji_data[i] < 0xe0) || kanji_data[i] > 0xef) {
-			invalid_kanji:
+			// initialise variables for iconv
+			const uint8_t *data_tmp = data;
+			const uint8_t *kanji_data_tmp = kanji_data;
+			size_t in_size = num_bytes, out_size = kanji_size;
+			size_t iconv_ret = iconv(cd, (char **) &data_tmp, &in_size, (char **) &kanji_data_tmp, &out_size);
+			if (iconv_ret == (size_t) -1 || kanji_data_tmp < kanji_data) {
 				FREE(kanji_data);
-				kanji = false;
-				break;
+				kanji = false; // not possible
+			} else {
+				kanji_size = kanji_data_tmp - kanji_data; // iconv increments the pointer, so we can calculate the new size using this
+				if (qr->alloc.realloc)
+					kanji_data = qr->alloc.realloc(kanji_data, kanji_size); // shrink to fit
 			}
+		}
+		iconv_close(cd);
 
-			// check second byte
-			if ((kanji_data[i] & 1) == 0) { // even
-				if (kanji_data[i + 1] < 0x9f || kanji_data[i + 1] > 0xfc) goto invalid_kanji;
-			} else { // odd
-				if (kanji_data[i + 1] < 0x40 || kanji_data[i + 1] > 0x9e || kanji_data[i + 1] == 0x7f) goto invalid_kanji;
+		if (kanji) {
+			// verify the data is entirely double-byte kanji characters
+			for (size_t i = 0; i < kanji_size; i += 2) {
+				// check first byte
+				if (kanji_data[i] < 0x81 || (kanji_data[i] > 0x9f && kanji_data[i] < 0xe0) || kanji_data[i] > 0xef) {
+				invalid_kanji:
+					FREE(kanji_data);
+					kanji = false;
+					break;
+				}
+
+				// check second byte
+				if ((kanji_data[i] & 1) == 0) { // even
+					if (kanji_data[i + 1] < 0x9f || kanji_data[i + 1] > 0xfc) goto invalid_kanji;
+				} else { // odd
+					if (kanji_data[i + 1] < 0x40 || kanji_data[i + 1] > 0x9e || kanji_data[i + 1] == 0x7f) goto invalid_kanji;
+				}
 			}
 		}
 	}
@@ -235,6 +237,7 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 			break;
 
 		case ENC_KANJI:
+			if (!kanji_data) break; // empty data
 			for (size_t i = 0; kanji_data[i]; i += 2) {
 				uint16_t word = kanji_data[i] << 8 | kanji_data[i + 1];
 				if (word >= 0xc140)

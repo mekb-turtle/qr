@@ -50,6 +50,8 @@ int main() {
 		ASSERT(qr.char_count, ==, 10, FMT_INT, ret = false);
 	}
 
+	qr_close(&qr);
+
 	// test with a string that requires kanji encoding
 	ret = qr_encode_utf8(&qr, alloc, "ぁあぃいぅうぇえぉおかがきぎく", ENC_AUTO, 0, ECL_HIGH, &error);
 
@@ -61,6 +63,76 @@ int main() {
 		ASSERT(qr.encoding, ==, ENC_KANJI, FMT_INT, ret = false);
 		ASSERT(qr.version, ==, 3, FMT_INT, ret = false);
 		ASSERT(qr.char_count, ==, 15, FMT_INT, ret = false);
+	}
+
+	qr_close(&qr);
+
+	// test empty strings
+	ret = qr_encode_utf8(&qr, alloc, "", ENC_AUTO, 0, ECL_HIGH, &error);
+
+	if (!ret) {
+		FAIL("qr_encode_utf8");
+		if (error) printf("error: %s\n", error);
+	} else {
+		ASSERT(qr.ecl, ==, ECL_HIGH, FMT_INT, ret = false);
+		ASSERT(qr.version, ==, 1, FMT_INT, ret = false);
+		ASSERT(qr.char_count, ==, 0, FMT_INT, ret = false);
+	}
+
+	qr_close(&qr);
+
+	ret = qr_encode_utf8(&qr, alloc, "", ENC_NUMERIC, 0, ECL_HIGH, &error);
+
+	if (!ret) {
+		FAIL("qr_encode_utf8");
+		if (error) printf("error: %s\n", error);
+	} else {
+		ASSERT(qr.ecl, ==, ECL_HIGH, FMT_INT, ret = false);
+		ASSERT(qr.encoding, ==, ENC_NUMERIC, FMT_INT, ret = false);
+		ASSERT(qr.version, ==, 1, FMT_INT, ret = false);
+		ASSERT(qr.char_count, ==, 0, FMT_INT, ret = false);
+	}
+
+	qr_close(&qr);
+
+	ret = qr_encode_utf8(&qr, alloc, "", ENC_ALPHANUMERIC, 0, ECL_HIGH, &error);
+
+	if (!ret) {
+		FAIL("qr_encode_utf8");
+		if (error) printf("error: %s\n", error);
+	} else {
+		ASSERT(qr.ecl, ==, ECL_HIGH, FMT_INT, ret = false);
+		ASSERT(qr.encoding, ==, ENC_ALPHANUMERIC, FMT_INT, ret = false);
+		ASSERT(qr.version, ==, 1, FMT_INT, ret = false);
+		ASSERT(qr.char_count, ==, 0, FMT_INT, ret = false);
+	}
+
+	qr_close(&qr);
+
+	ret = qr_encode_utf8(&qr, alloc, "", ENC_BYTE, 0, ECL_HIGH, &error);
+
+	if (!ret) {
+		FAIL("qr_encode_utf8");
+		if (error) printf("error: %s\n", error);
+	} else {
+		ASSERT(qr.ecl, ==, ECL_HIGH, FMT_INT, ret = false);
+		ASSERT(qr.encoding, ==, ENC_BYTE, FMT_INT, ret = false);
+		ASSERT(qr.version, ==, 1, FMT_INT, ret = false);
+		ASSERT(qr.char_count, ==, 0, FMT_INT, ret = false);
+	}
+
+	qr_close(&qr);
+
+	ret = qr_encode_utf8(&qr, alloc, "", ENC_KANJI, 0, ECL_HIGH, &error);
+
+	if (!ret) {
+		FAIL("qr_encode_utf8");
+		if (error) printf("error: %s\n", error);
+	} else {
+		ASSERT(qr.ecl, ==, ECL_HIGH, FMT_INT, ret = false);
+		ASSERT(qr.encoding, ==, ENC_KANJI, FMT_INT, ret = false);
+		ASSERT(qr.version, ==, 1, FMT_INT, ret = false);
+		ASSERT(qr.char_count, ==, 0, FMT_INT, ret = false);
 	}
 
 	qr_close(&qr);
