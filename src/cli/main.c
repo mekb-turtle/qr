@@ -21,7 +21,7 @@ struct options {
 	module_t module_size;
 	enum qr_ecl ecl;
 	uint8_t version;
-	enum qr_encoding encoding;
+	enum qr_mode encoding;
 };
 
 #define MODULE_SIZE_IMAGE_DEFAULT 8
@@ -194,7 +194,7 @@ int main(int argc, char *argv[]) {
 	if (opt_ecl) {
 		if (!parse_ecl(opt_ecl, &options.ecl)) goto invalid_syntax;
 	} else {
-		options.ecl = ECL_LOW;
+		options.ecl = QR_ECL_LOW;
 	}
 
 	options.version = 0;
@@ -218,7 +218,7 @@ int main(int argc, char *argv[]) {
 	if (opt_encoding) {
 		if (!parse_encoding(opt_encoding, &options.encoding)) goto invalid_syntax;
 	} else {
-		options.encoding = ENC_AUTO;
+		options.encoding = QR_MODE_AUTO;
 	}
 
 	struct qr_alloc alloc = QR_ALLOC(malloc, realloc, free);

@@ -134,13 +134,13 @@ bool parse_ecl(const char *str, enum qr_ecl *ecl) {
 	if (!str) return false;
 
 	if (MATCH(str, "l") || MATCH(str, "low")) {
-		*ecl = ECL_LOW;
+		*ecl = QR_ECL_LOW;
 	} else if (MATCH(str, "m") || MATCH(str, "medium")) {
-		*ecl = ECL_MEDIUM;
+		*ecl = QR_ECL_MEDIUM;
 	} else if (MATCH(str, "q") || MATCH(str, "quartile")) {
-		*ecl = ECL_QUARTILE;
+		*ecl = QR_ECL_QUARTILE;
 	} else if (MATCH(str, "h") || MATCH(str, "high")) {
-		*ecl = ECL_HIGH;
+		*ecl = QR_ECL_HIGH;
 	} else {
 		return false;
 	}
@@ -148,19 +148,19 @@ bool parse_ecl(const char *str, enum qr_ecl *ecl) {
 	return true;
 }
 
-bool parse_encoding(const char *str, enum qr_encoding *encoding) {
+bool parse_encoding(const char *str, enum qr_mode *encoding) {
 	if (!str) return false;
 
 	if (MATCH(str, "auto")) {
-		*encoding = ENC_AUTO;
+		*encoding = QR_MODE_AUTO;
 	} else if (MATCH(str, "numeric") || MATCH(str, "n")) {
-		*encoding = ENC_NUMERIC;
+		*encoding = QR_MODE_NUMERIC;
 	} else if (MATCH(str, "alphanumeric") || MATCH(str, "a")) {
-		*encoding = ENC_ALPHANUMERIC;
+		*encoding = QR_MODE_ALPHANUMERIC;
 	} else if (MATCH(str, "byte") || MATCH(str, "b")) {
-		*encoding = ENC_BYTE;
+		*encoding = QR_MODE_BYTE;
 	} else if (MATCH(str, "kanji") || MATCH(str, "k")) {
-		*encoding = ENC_KANJI;
+		*encoding = QR_MODE_KANJI;
 	} else {
 		return false;
 	}

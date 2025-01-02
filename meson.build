@@ -14,11 +14,10 @@ test_d = 'src' / 'test'
 
 # define source files
 src_all = files()  # included for all the following
-src_libqr = files(
+header_libqr = files(libqr_d / 'qr.h', libqr_d / 'bit_buffer.h')
+src_libqr = header_libqr + files(
     libqr_d / 'qr.c',
-    libqr_d / 'qr.h',
     libqr_d / 'bit_buffer.c',
-    libqr_d / 'bit_buffer.h',
     libqr_d / 'qr_table.c',
     libqr_d / 'qr_table.h',
     libqr_d / 'utf8.c',
@@ -81,13 +80,16 @@ add_project_arguments(
 fs = import('fs')
 
 # library
+libdir = get_option('prefix') / get_option('libdir')
 libqr = library(
     'QR',
     sources: src_all + src_libqr,
-    include_directories: include_directories(libqr_d),
     install: true,
     dependencies: dependencies_libqr,
+    install_dir: libdir,
 )
+
+install_headers(header_libqr, subdir: 'qr')
 
 # loop tests
 foreach test_ : tests
@@ -127,4 +129,5 @@ cli = executable(
     install: true,
     dependencies: dependencies_cli,
     link_with: libqr,
+    install_rpath: libdir,
 )

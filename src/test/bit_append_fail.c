@@ -6,7 +6,7 @@
 int main() {
 	int ret = 1;
 
-	struct bit_buffer buf = {.size = 100, .byte_index = 0, .bit_index = 0};
+	struct qr_bit_buffer buf = {.size = 100, .byte_index = 0, .bit_index = 0};
 	uint8_t data_[buf.size];
 	buf.data = data_;
 	memset(buf.data, 0, buf.size);

@@ -14,7 +14,7 @@ static void print_bits(uint8_t *data, size_t len) {
 	printf("\n");
 }
 
-static bool check_buf(struct bit_buffer buf, size_t expected_bit_count, uint8_t *expected_data, size_t len) {
+static bool check_buf(struct qr_bit_buffer buf, size_t expected_bit_count, uint8_t *expected_data, size_t len) {
 	print_bits(buf.data, 3);
 
 	bool ret = true;
@@ -32,7 +32,7 @@ static bool check_buf(struct bit_buffer buf, size_t expected_bit_count, uint8_t 
 int main() {
 	int ret = 0;
 
-	struct bit_buffer buf = {.size = 100, .byte_index = 0, .bit_index = 0};
+	struct qr_bit_buffer buf = {.size = 100, .byte_index = 0, .bit_index = 0};
 	uint8_t data_[buf.size];
 	buf.data = data_;
 	memset(buf.data, 0, buf.size);

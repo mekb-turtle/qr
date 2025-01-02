@@ -4,14 +4,11 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <limits.h>
-#include "bit_buffer.h"
 
 #define QR_MIN_VERSION (1)
 #define QR_MAX_VERSION (40)
 
-#define QR_VERSION_NUM (QR_MAX_VERSION - QR_MIN_VERSION + 1)
-#define QR_ECL_NUM (4)
-#define QR_MODE_NUM (4)
+#define QR_VERSION_AUTO (0)
 
 #define QR_SIZE(version) (17 + 4 * version)
 #define QR_DATA_SIZE(size) ((size * size + 7) / 8)
@@ -35,28 +32,35 @@ struct qr_pos {
 	qr_t x, y;
 };
 
+struct qr_bit_buffer {
+	void *data;
+	size_t size;
+	size_t byte_index;
+	uint8_t bit_index;
+};
+
 struct qr {
 	// error correction level
 	enum qr_ecl {
-		ECL_LOW = 0,
-		ECL_MEDIUM = 1,
-		ECL_QUARTILE = 2,
-		ECL_HIGH = 3
+		QR_ECL_LOW = 0,
+		QR_ECL_MEDIUM = 1,
+		QR_ECL_QUARTILE = 2,
+		QR_ECL_HIGH = 3
 	} ecl;
 
-	// QR code encoding
-	enum qr_encoding {
-		ENC_AUTO = 0,
-		ENC_NUMERIC = 1,
-		ENC_ALPHANUMERIC = 2,
-		ENC_BYTE = 3,
-		ENC_KANJI = 4
-	} encoding;
+	// encoding mode
+	enum qr_mode {
+		QR_MODE_AUTO = 0,
+		QR_MODE_NUMERIC = 1,
+		QR_MODE_ALPHANUMERIC = 2,
+		QR_MODE_BYTE = 3,
+		QR_MODE_KANJI = 4
+	} mode;
 
-	uint8_t version; // QR code version, 1-40
+	uint8_t version; // QR code version, 1-40, 0 = auto
 
-	struct bit_buffer data;   // data encoded in the QR code
-	struct bit_buffer data_i; // interleaved data, ready for rendering into modules
+	struct qr_bit_buffer data;   // data encoded in the QR code
+	struct qr_bit_buffer data_i; // interleaved data, ready for rendering into modules
 
 	size_t char_count; // number of characters in the data
 
@@ -74,7 +78,7 @@ struct qr {
 
 // encode QR code with UTF-8 encoded data
 // qr MUST be zeroed out at least once before calling this function
-bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum qr_encoding encoding, uint8_t version, enum qr_ecl ecl, const char **error);
+bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum qr_mode mode, uint8_t version, enum qr_ecl ecl, const char **error);
 
 // prepares data for rendering
 bool qr_prepare_data(struct qr *qr, const char **error);

@@ -23,5 +23,5 @@ enum parse_color_reason {
 enum parse_color_reason parse_color_fallback(const char *str, enum output_format format, struct color *color, struct color fallback);
 
 bool parse_ecl(const char *str, enum qr_ecl *ecl);
-bool parse_encoding(const char *str, enum qr_encoding *encoding);
+bool parse_encoding(const char *str, enum qr_mode *encoding);
 #endif // ARG_H

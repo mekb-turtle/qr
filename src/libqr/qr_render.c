@@ -54,17 +54,6 @@ uint8_t get_alignment_locations(uint8_t version, uint8_t *out) {
 }
 
 bool qr_render(struct qr *qr, const char **error) {
-	if (!(QR_VALID(qr) && qr->data_i.data)) {
-		*error = "Invalid QR data";
-		return false;
-	}
-
-	if (qr->output.data) {
-		// free already allocated data
-		if (qr->alloc.free) qr->alloc.free(qr->output.data);
-		qr->output.data = NULL;
-	}
-
 	struct qr_bitmap qr_drawn = {0};
 	struct qr_render render = {&qr->output, &qr_drawn};
 
@@ -73,7 +62,16 @@ bool qr_render(struct qr *qr, const char **error) {
 		*error = msg;          \
 		FREE(qr_drawn.data);   \
 		FREE(qr->output.data); \
+		qr_close(qr);          \
 		return false;          \
+	}
+
+	if (!(QR_VALID(qr) && qr->data_i.data)) ERROR("Invalid QR data");
+
+	if (qr->output.data) {
+		// free already allocated data
+		if (qr->alloc.free) qr->alloc.free(qr->output.data);
+		qr->output.data = NULL;
 	}
 
 	// allocate memory for output
