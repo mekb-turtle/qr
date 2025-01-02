@@ -5,11 +5,11 @@
 #include <string.h>
 
 struct qr_render {
-	struct qr_bitmap *bitmap, *drawn;
+	struct qr_bitmap *bitmap, *mask;
 };
 
 static bool write(struct qr_render render, struct qr_pos pos, bool value) {
-	if (!qr_bitmap_write(render.drawn, pos, true)) return false;
+	if (!qr_bitmap_write(render.mask, pos, true)) return false;
 	if (!qr_bitmap_write(render.bitmap, pos, value)) return false;
 	return true;
 }
@@ -54,8 +54,8 @@ uint8_t get_alignment_locations(uint8_t version, uint8_t *out) {
 }
 
 bool qr_render(struct qr *qr, const char **error) {
-	if (!QR_ENSURE_ALLOC(qr)) {
-		*error = "Invalid allocator";
+	if (!(QR_VALID(qr) && qr->data_i.data)) {
+		*error = "Invalid QR data";
 		return false;
 	}
 

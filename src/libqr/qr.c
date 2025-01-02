@@ -9,8 +9,6 @@
 
 #define ERR_ALLOC "Failed to allocate memory"
 
-static bool qr_post_encode(struct qr *qr, const char **error);
-
 // numeric, alphanumeric, byte, kanji
 static uint8_t encoding_bits[4] = {1, 2, 4, 8};
 
@@ -18,6 +16,9 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 	// pointers to simplify error handling
 	uint8_t *kanji_data = NULL;
 	struct bit_buffer *new_data = NULL;
+
+	qr_close(qr); // close any previous data
+
 #define ERROR(msg)                          \
 	{                                       \
 		*error = msg;                       \
@@ -26,13 +27,11 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 		return false;                       \
 	}
 
-	qr_close(qr);
+	if (!QR_ALLOC_VALID(alloc)) ERROR("Invalid allocator");
 
-	memset(qr, 0, sizeof(*qr)); // zero out the struct, prevents UB later on
+	memset(qr, 0, sizeof(*qr)); // zero out the struct, prevents potential UB later on
 
 	qr->alloc = alloc;
-	if (!QR_ENSURE_ALLOC(qr)) ERROR("Invalid allocator");
-
 	qr->encoding = encoding;
 	qr->version = version;
 	qr->ecl = ecl;
@@ -256,17 +255,18 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 
 #undef ERROR
 #undef ADD_BITS
-	return qr_post_encode(qr, error);
+	return true;
 }
 
-static bool qr_post_encode(struct qr *qr, const char **error) {
+bool qr_prepare_data(struct qr *qr, const char **error) {
 #define ERROR(msg)           \
 	{                        \
 		*error = msg;        \
 		FREE(qr->data.data); \
 		return false;        \
 	}
-	if (!QR_ENSURE_ALLOC(qr)) ERROR("Invalid allocator");
+	if (!QR_VALID(qr)) ERROR("Invalid QR data");
+
 #define ADD_BITS(value, bits) \
 	if (!bit_buffer_add_bits(&qr->data, value, bits)) ERROR("Failed to add bits: " LINE_STR);
 
@@ -311,6 +311,7 @@ static bool qr_post_encode(struct qr *qr, const char **error) {
 	memset(ec_blocks, 0, ec_blocks_len);
 
 #undef ERROR
+	FREE(qr->data_i.data);
 	qr->data_i.data = NULL;
 	// free ec_blocks if error
 #define ERROR(msg)             \
@@ -437,5 +438,16 @@ bool qr_bitmap_read(struct qr_bitmap output, struct qr_pos pos) {
 void qr_close(struct qr *qr) {
 	FREE(qr->data.data);
 	FREE(qr->data_i.data);
+
+	qr->data.byte_index = 0;
+	qr->data.bit_index = 0;
+	qr->data.size = 0;
+	qr->data_i.byte_index = 0;
+	qr->data_i.bit_index = 0;
+	qr->data_i.size = 0;
+
 	FREE(qr->output.data);
+
+	qr->output.size = 0;
+	qr->output.data_size = 0;
 }

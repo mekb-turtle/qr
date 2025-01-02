@@ -257,8 +257,13 @@ int main(int argc, char *argv[]) {
 #define PRINT_ERROR(msg) eprintf("%s%s%s\n", msg, error ? ": " : "", error ? error : "")
 
 	if (!qr_encode_utf8(&qr, alloc, str, options.encoding, options.version, options.ecl, &error)) {
-		PRINT_ERROR("Failed to encode QR code");
+		PRINT_ERROR("Failed to encode data for QR code");
 		goto close_exit;
+	}
+
+	if (!qr_prepare_data(&qr, &error)) {
+		PRINT_ERROR("Failed to prepare QR code data");
+		goto qr_exit;
 	}
 
 	if (!qr_render(&qr, &error)) {

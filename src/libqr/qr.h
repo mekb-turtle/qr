@@ -69,9 +69,15 @@ struct qr {
 	} output;
 };
 
+// the general order of functions is:
+// qr_init -> qr_encode_* -> qr_prepare_data -> qr_render -> qr_bitmap_read[] -> qr_close
+
 // encode QR code with UTF-8 encoded data
 // qr MUST be zeroed out at least once before calling this function
 bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum qr_encoding encoding, uint8_t version, enum qr_ecl ecl, const char **error);
+
+// prepares data for rendering
+bool qr_prepare_data(struct qr *qr, const char **error);
 
 // renders QR code into modules
 bool qr_render(struct qr *qr, const char **error);
