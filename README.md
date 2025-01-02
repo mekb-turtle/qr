@@ -59,7 +59,7 @@ int main() {
 		return 1;
 	}
 
-	if (!qr_render(&qr, &error)) {
+	if (!qr_render(&qr, &error, QR_MASK_AUTO)) {
 		eprintf("Failed to render QR code: %s\n", error);
 		return 1;
 	}
