@@ -5,10 +5,13 @@
 #include <stdbool.h>
 #include <limits.h>
 
-#define QR_MIN_VERSION (1)
-#define QR_MAX_VERSION (40)
-
+#define QR_VERSION_MIN (1)
+#define QR_VERSION_MAX (40)
 #define QR_VERSION_AUTO (0)
+
+#define QR_MASK_MIN (0)
+#define QR_MASK_MAX (7)
+#define QR_MASK_AUTO (255)
 
 #define QR_SIZE(version) (17 + 4 * version)
 #define QR_DATA_SIZE(size) ((size * size + 7) / 8)
@@ -84,7 +87,7 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum
 bool qr_prepare_data(struct qr *qr, const char **error);
 
 // renders QR code into modules
-bool qr_render(struct qr *qr, const char **error);
+bool qr_render(struct qr *qr, const char **error, uint8_t mask);
 
 // read/write a module from the QR code
 bool qr_bitmap_write(struct qr_bitmap *output, struct qr_pos pos, bool value);

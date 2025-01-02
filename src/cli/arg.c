@@ -5,8 +5,6 @@
 #include <ctype.h>
 #include <string.h>
 
-#define MATCH(s1, s2) (strcasecmp(s1, s2) == 0)
-
 typedef long long int ll;
 typedef unsigned long long int ull;
 

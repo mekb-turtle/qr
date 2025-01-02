@@ -13,17 +13,6 @@
 
 #define eprintf(...) fprintf(stderr, __VA_ARGS__)
 
-struct options {
-	bool invert;
-	enum output_format format;
-	struct color fg, bg;
-	module_t quiet_zone;
-	module_t module_size;
-	enum qr_ecl ecl;
-	uint8_t version;
-	enum qr_mode encoding;
-};
-
 #define MODULE_SIZE_IMAGE_DEFAULT 8
 #define MODULE_SIZE_TEXT_DEFAULT 1
 
@@ -36,8 +25,16 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	struct options options;
-	memset(&options, 0, sizeof(options));
+	bool invert = false;
+	enum output_format format;
+	struct color fg, bg;
+	module_t quiet_zone;
+	module_t module_size;
+	enum qr_ecl ecl;
+	uint8_t version;
+	enum qr_mode encoding;
+	bool force_terminal = false;
+	uint8_t mask;
 
 	char *opt_format = NULL,
 	     *opt_background = NULL,
@@ -47,28 +44,28 @@ int main(int argc, char *argv[]) {
 	     *opt_output = NULL,
 	     *opt_ecl = NULL,
 	     *opt_version = NULL,
-	     *opt_encoding = NULL;
-
-	bool force_terminal = false;
+	     *opt_encoding = NULL,
+	     *opt_mask = NULL;
 
 	bool invalid = false;
 	int opt;
 
 	// argument handling
-	while ((opt = getopt_long(argc, argv, ":hVf:iB:F:q:m:o:e:v:E:S", (struct option[]){
-	                                                                         {"help",       no_argument,       0, 'h'},
-	                                                                         {"format",     required_argument, 0, 'f'},
-	                                                                         {"invert",     no_argument,       0, 'i'},
-	                                                                         {"background", required_argument, 0, 'B'},
-	                                                                         {"foreground", required_argument, 0, 'F'},
-	                                                                         {"quiet",      required_argument, 0, 'q'},
-	                                                                         {"module",     required_argument, 0, 'm'},
-	                                                                         {"output",     required_argument, 0, 'o'},
-	                                                                         {"ecl",        required_argument, 0, 'e'},
-	                                                                         {"version",    required_argument, 0, 'v'},
-	                                                                         {"encoding",   required_argument, 0, 'E'},
-	                                                                         {"terminal",   no_argument,       0, 'S'},
-	                                                                         {0,            0,                 0, 0  }
+	while ((opt = getopt_long(argc, argv, ":hVf:iB:F:q:m:o:e:v:E:SM:", (struct option[]){
+	                                                                           {"help",       no_argument,       0, 'h'},
+	                                                                           {"format",     required_argument, 0, 'f'},
+	                                                                           {"invert",     no_argument,       0, 'i'},
+	                                                                           {"background", required_argument, 0, 'B'},
+	                                                                           {"foreground", required_argument, 0, 'F'},
+	                                                                           {"quiet",      required_argument, 0, 'q'},
+	                                                                           {"module",     required_argument, 0, 'm'},
+	                                                                           {"output",     required_argument, 0, 'o'},
+	                                                                           {"ecl",        required_argument, 0, 'e'},
+	                                                                           {"version",    required_argument, 0, 'v'},
+	                                                                           {"encoding",   required_argument, 0, 'E'},
+	                                                                           {"terminal",   no_argument,       0, 'S'},
+	                                                                           {"mask",       required_argument, 0, 'M'},
+	                                                                           {0,            0,                 0, 0  }
     },
 	                          NULL)) != -1) {
 		switch (opt) {
@@ -92,12 +89,14 @@ int main(int argc, char *argv[]) {
 -m --module <pixels>: Size of each module in pixels/characters (default: %i for image, %i for text)\n\
 \n\
 -o --output: Specify the output file, - for stdin\n\
+-S --terminal: Force output to terminal\n\
 \n\
 -e --ecl: Error correction level (default: low)\n\
   Values: low/medium/quartile/high\n\
--v --version <1-40|auto>: QR code version (default: auto)\n\
+-v --version <1-40|auto>: Minimum QR code version\n\
 -E --encoding <encoding>: Encoding to use (default: auto)\n\
   Values: auto/numeric/alphanumeric/byte/kanji\n\
+-M --mask <0-7|auto>: Force mask to use\n\
 \n\
 ",
 				       QUIET_ZONE_DEFAULT, MODULE_SIZE_IMAGE_DEFAULT, MODULE_SIZE_TEXT_DEFAULT);
@@ -116,7 +115,7 @@ int main(int argc, char *argv[]) {
 						opt_format = optarg;
 						break;
 					case 'i':
-						options.invert = true;
+						invert = true;
 						break;
 					case 'B':
 						if (!optarg) invalid = true;
@@ -153,6 +152,10 @@ int main(int argc, char *argv[]) {
 					case 'S':
 						force_terminal = true;
 						break;
+					case 'M':
+						if (!optarg) invalid = true;
+						opt_mask = optarg;
+						break;
 					default:
 						invalid = true;
 						break;
@@ -175,13 +178,16 @@ int main(int argc, char *argv[]) {
 	// parse all options
 
 	if (opt_format) {
-		if (!parse_output_format(opt_format, &options.format)) goto invalid_syntax;
+		if (!parse_output_format(opt_format, &format)) {
+			eprintf("Invalid output format\n");
+			return 1;
+		}
 	} else {
-		options.format = OUTPUT_TEXT;
+		format = OUTPUT_TEXT;
 		if (!is_stdout) {
 			// detect output format from file extension
 			const char *ext = strrchr(opt_output, '.');
-			if (!ext || !parse_output_format(ext + 1, &options.format)) {
+			if (!ext || !parse_output_format(ext + 1, &format)) {
 				eprintf("No output format specified\n");
 				return 1;
 			}
@@ -189,46 +195,61 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (opt_module) {
-		if (!parse_u8(opt_module, &options.module_size, NULL)) goto invalid_syntax;
-		if (options.module_size < 1) goto invalid_syntax;
+		if (!parse_u8(opt_module, &module_size, NULL) || module_size < 1) {
+			eprintf("Invalid module size, should be at least 1\n");
+			return 1;
+		}
 	} else {
-		options.module_size = options.format & OUTPUT_IS_IMAGE ? MODULE_SIZE_IMAGE_DEFAULT : MODULE_SIZE_TEXT_DEFAULT;
+		module_size = format & OUTPUT_IS_IMAGE ? MODULE_SIZE_IMAGE_DEFAULT : MODULE_SIZE_TEXT_DEFAULT;
 	}
 
 	if (opt_quiet_zone) {
-		if (!parse_u8(opt_quiet_zone, &options.quiet_zone, NULL)) goto invalid_syntax;
+		if (!parse_u8(opt_quiet_zone, &quiet_zone, NULL)) {
+			eprintf("Invalid quiet zone size\n");
+			return 1;
+		}
 	} else {
-		options.quiet_zone = QUIET_ZONE_DEFAULT;
+		quiet_zone = QUIET_ZONE_DEFAULT;
 	}
 
 	if (opt_ecl) {
-		if (!parse_ecl(opt_ecl, &options.ecl)) goto invalid_syntax;
+		if (!parse_ecl(opt_ecl, &ecl)) {
+			eprintf("Invalid error correction level\n");
+			return 1;
+		}
 	} else {
-		options.ecl = QR_ECL_LOW;
+		ecl = QR_ECL_LOW;
 	}
 
-	options.version = 0;
-	if (opt_version) {
-		if (strcasecmp(opt_version, "auto") != 0) {
-			if (!parse_u8(opt_version, &options.version, NULL)) goto invalid_syntax;
-			if (options.version > 40) goto invalid_syntax;
+	version = QR_VERSION_AUTO;
+	if (opt_version && !MATCH(opt_version, "auto")) {
+		if (!parse_u8(opt_version, &version, NULL) || version < QR_VERSION_MIN || version > QR_VERSION_MAX) {
+			eprintf("Invalid version, should be between 1-40 inclusive or 'auto'\n");
+		}
+	}
+
+	mask = QR_MASK_AUTO;
+	if (opt_mask && !MATCH(opt_mask, "auto")) {
+		if (!parse_u8(opt_mask, &mask, NULL) || mask > QR_MASK_MAX) {
+			eprintf("Invalid mask value, should be between 0-7 inclusive\n");
+			return 1;
 		}
 	}
 
 	enum parse_color_reason reason;
 
-	reason = parse_color_fallback(opt_background, options.format, &options.bg, (struct color){255, 255, 255, 255});
+	reason = parse_color_fallback(opt_background, format, &bg, (struct color){255, 255, 255, 255});
 	print_color_reason(reason);
 	if (reason != COLOR_OK) return 1;
 
-	reason = parse_color_fallback(opt_foreground, options.format, &options.fg, (struct color){0, 0, 0, 255});
+	reason = parse_color_fallback(opt_foreground, format, &fg, (struct color){0, 0, 0, 255});
 	print_color_reason(reason);
 	if (reason != COLOR_OK) return 1;
 
 	if (opt_encoding) {
-		if (!parse_encoding(opt_encoding, &options.encoding)) goto invalid_syntax;
+		if (!parse_encoding(opt_encoding, &encoding)) goto invalid_syntax;
 	} else {
-		options.encoding = QR_MODE_AUTO;
+		encoding = QR_MODE_AUTO;
 	}
 
 	struct qr_alloc alloc = QR_ALLOC(malloc, realloc, free);
@@ -254,7 +275,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (options.format & OUTPUT_IS_IMAGE && !force_terminal && isatty(fileno(fp))) {
+	if (format & OUTPUT_IS_IMAGE && !force_terminal && isatty(fileno(fp))) {
 		eprintf("Refusing to write image to terminal\n");
 	close_exit:
 		if (fp != stdout) fclose(fp);
@@ -266,7 +287,7 @@ int main(int argc, char *argv[]) {
 	const char *error = NULL;
 #define PRINT_ERROR(msg) eprintf("%s%s%s\n", msg, error ? ": " : "", error ? error : "")
 
-	if (!qr_encode_utf8(&qr, alloc, str, options.encoding, options.version, options.ecl, &error)) {
+	if (!qr_encode_utf8(&qr, alloc, str, encoding, version, ecl, &error)) {
 		PRINT_ERROR("Failed to encode data for QR code");
 		goto close_exit;
 	}
@@ -276,7 +297,7 @@ int main(int argc, char *argv[]) {
 		goto qr_exit;
 	}
 
-	if (!qr_render(&qr, &error)) {
+	if (!qr_render(&qr, &error, mask)) {
 		PRINT_ERROR("Failed to render QR code");
 	qr_exit:
 		qr_close(&qr);
@@ -284,12 +305,12 @@ int main(int argc, char *argv[]) {
 	}
 
 	struct output_options out_opt = {
-	        .format = options.format,
-	        .fg = options.fg,
-	        .bg = options.bg,
-	        .quiet_zone = options.quiet_zone,
-	        .module_size = options.module_size,
-	        .invert = options.invert};
+	        .format = format,
+	        .fg = fg,
+	        .bg = bg,
+	        .quiet_zone = quiet_zone,
+	        .module_size = module_size,
+	        .invert = invert};
 
 	if (!write_output(fp, &qr, out_opt, &error)) {
 		PRINT_ERROR("Failed to write output");

@@ -151,12 +151,12 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 
 	new_data = &qr->data; // short-hand
 
-	if (qr->version > QR_MAX_VERSION) ERROR("Invalid version");
+	if (qr->version > QR_VERSION_MAX) ERROR("Invalid version");
 
 	// find the smallest version that can fit the data
-	while (qr->version < QR_MIN_VERSION || character_capacity[4 * (qr->version - 1) + qr->ecl][qr->mode - 1] < qr->char_count) {
+	while (qr->version < QR_VERSION_MIN || character_capacity[4 * (qr->version - 1) + qr->ecl][qr->mode - 1] < qr->char_count) {
 		++qr->version;
-		if (qr->version > QR_MAX_VERSION) ERROR("Too much data");
+		if (qr->version > QR_VERSION_MAX) ERROR("Too much data");
 	}
 
 	// number of bits for character count indicator
@@ -398,7 +398,6 @@ bool qr_prepare_data(struct qr *qr, const char **error) {
 	// add remainder bits
 	if (!bit_buffer_add_bits(&qr->data_i, 0, remainder_bits[qr->version - 1])) ERROR("Failed to add remainder bits");
 
-	(void) error;
 	return true;
 }
 

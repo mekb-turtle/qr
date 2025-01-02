@@ -1,21 +1,7 @@
 #include "bit_buffer.h"
-// #define DEBUG
-#ifdef DEBUG
-#include <stdio.h>
-#define eprintf(...) fprintf(stderr, __VA_ARGS__)
-#endif
 
 // add bits to buffer
 bool bit_buffer_add_bits(struct qr_bit_buffer *buf, uint32_t value, uint8_t bits) {
-#ifdef DEBUG
-	eprintf("Adding %u bits to %p: ", bits, (void *) buf);
-	for (uint8_t i = 0; i < bits; ++i) {
-		// loop bits
-		eprintf("%d", (value >> (bits - i - 1)) & 1);
-	}
-	eprintf("\n");
-#endif
-
 	uint8_t *data = buf->data;
 
 	if (bits == 0) return true;  // nothing to do

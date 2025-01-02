@@ -148,7 +148,7 @@ int main() {
 			ret = 1;
 			continue;
 		}
-		if (!qr_render(&qr, &error)) {
+		if (!qr_render(&qr, &error, QR_MASK_AUTO)) {
 			FAIL("qr_generate: %s", error);
 			ret = 1;
 			continue;

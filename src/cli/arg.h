@@ -2,8 +2,11 @@
 #define ARG_H
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include "../libqr/qr.h"
 #include "output.h"
+
+#define MATCH(s1, s2) (strcasecmp(s1, s2) == 0)
 
 #define PARSE_FUNC(name, type, min, max, signed) \
 	bool parse_##name(const char *str, type *out, char **endptr);
