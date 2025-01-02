@@ -22,6 +22,9 @@ This is a simple QR code generator written in C. It reads a string from argument
   - Text (using Unicode block characters)
   - HTML
 
+## Future plans
+- Micro QR codes (μQR)
+
 ## Dependencies
 - `iconv` (glibc)
 
