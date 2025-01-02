@@ -1,7 +1,7 @@
 #!/bin/bash
 # generates the required test data for qr_output.c
 # requires the qrcode package from npm
-# requires imagemagick
+# requires imagemagick and perl
 
 set -e -u -o pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"

@@ -1,0 +1,40 @@
+name: Meson
+run-name: Build and test with Meson
+on:
+  pull_request:
+    branches:
+      - '*'
+  push:
+    branches:
+      - '*'
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential meson ninja-build perl imagemagick
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install npm packages
+        run: npm install -g qrcode
+      - name: Configure project
+        run: meson setup build --buildtype=release --prefer-static -D default_library=static --prefix=${{github.workspace}}/out/ --reconfigure
+      - name: Build project
+        run: meson compile -C build
+      - name: Prepare tests
+        run: bash src/test/qr_output/qr_output.sh
+      - continue-on-error: true
+        name: Run tests
+        run: meson test -C build --print-errorlogs
+      - name: Install project
+        run: meson install -C build
+      - name: Upload install directory as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: out/
