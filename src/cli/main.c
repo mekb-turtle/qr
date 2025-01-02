@@ -170,12 +170,22 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
+	bool is_stdout = !opt_output || strcmp(opt_output, "-") == 0;
+
 	// parse all options
 
 	if (opt_format) {
 		if (!parse_output_format(opt_format, &options.format)) goto invalid_syntax;
 	} else {
 		options.format = OUTPUT_TEXT;
+		if (!is_stdout) {
+			// detect output format from file extension
+			const char *ext = strrchr(opt_output, '.');
+			if (!ext || !parse_output_format(ext + 1, &options.format)) {
+				eprintf("No output format specified\n");
+				return 1;
+			}
+		}
 	}
 
 	if (opt_module) {
@@ -236,7 +246,7 @@ int main(int argc, char *argv[]) {
 	struct qr qr;
 
 	FILE *fp = stdout;
-	if (opt_output && strcmp(opt_output, "-") != 0) {
+	if (!is_stdout) {
 		fp = fopen(opt_output, "wb");
 		if (!fp) {
 			eprintf("%s: %s\n", opt_output, strerror(errno));

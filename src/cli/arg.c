@@ -66,7 +66,7 @@ bool parse_output_format(const char *str, enum output_format *format) {
 	if (!str || !*str) return false;
 	if (MATCH(str, "text") || MATCH(str, "txt") || MATCH(str, "t")) {
 		*format = OUTPUT_TEXT;
-	} else if (MATCH(str, "html") || MATCH(str, "h")) {
+	} else if (MATCH(str, "html") || MATCH(str, "h") || MATCH(str, "htm")) {
 		*format = OUTPUT_HTML;
 	} else if (MATCH(str, "unicode") || MATCH(str, "u")) {
 		*format = OUTPUT_UNICODE;
