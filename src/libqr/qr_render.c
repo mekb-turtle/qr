@@ -268,7 +268,7 @@ bool qr_render(struct qr *qr, const char **error, uint8_t mask) {
 	}
 
 	if (mask == QR_MASK_AUTO) {
-		uint16_t penalty;
+		uint16_t penalty = 0;
 
 		// apply best mask
 		for (uint8_t i = 0; i < 8; i++) {
