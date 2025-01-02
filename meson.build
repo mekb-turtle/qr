@@ -52,6 +52,7 @@ tests = [
     },
     {'files': files(test_d / 'gf256.c')},
     {'files': files(test_d / 'qr_encode.c')},
+    {'files': files(test_d / 'qr_output' / 'qr_output.c')},
     {'files': files(test_d / 'alignment.c')},
 ]
 

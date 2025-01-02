@@ -6,7 +6,7 @@
 #include "../libqr/qr_render.h"
 #include "test.h"
 
-uint8_t expected[40][8] = {
+static uint8_t expected[40][8] = {
         {0},
         {2, 6, 18},
         {2, 6, 22},
@@ -50,20 +50,20 @@ uint8_t expected[40][8] = {
 };
 
 int main() {
-	int res = 0;
+	int ret = 0;
 
 	for (size_t version = 1; version <= 40; version++) {
 		printf("version %zu:\n", version);
 		uint8_t out[7];
-		uint8_t ret = get_alignment_locations(version, out);
+		uint8_t result = get_alignment_locations(version, out);
 		uint8_t *exp = expected[version - 1];
-		ASSERT(ret, ==, exp[0], FMT_INT, res = 1);
-		if (ret == exp[0]) {
-			for (size_t j = 0; j < ret; j++) {
-				ASSERT(out[j], ==, exp[j + 1], FMT_INT, res = 1);
+		ASSERT(result, ==, exp[0], FMT_INT, ret = 1);
+		if (result == exp[0]) {
+			for (size_t j = 0; j < result; j++) {
+				ASSERT(out[j], ==, exp[j + 1], FMT_INT, ret = 1);
 			}
 		}
 	}
 
-	return res;
+	return ret;
 }
