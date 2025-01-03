@@ -230,7 +230,6 @@ bool qr_render(struct qr *qr, const char **error, uint8_t mask) {
 			if (!fetch_bit(qr, &byte_index, &bit_index, &bit)) ERROR("Failed to fetch bit");
 
 			// write module
-			// TODO: fix valgrind errors
 			if (!write(render, pos, bit, false)) break;
 		}
 

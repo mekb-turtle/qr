@@ -1,6 +1,7 @@
 #include "bit_buffer.h"
 
 // add bits to buffer
+// NOTE: this function does NOT write '0' bits to the buffer, clear the buffer with memset() before using it
 bool bit_buffer_add_bits(struct qr_bit_buffer *buf, uint32_t value, uint8_t bits) {
 	uint8_t *data = buf->data;
 

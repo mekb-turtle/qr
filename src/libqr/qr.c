@@ -184,6 +184,7 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 	new_data->size = (new_data->size + 7) / 8; // round up to nearest byte
 	new_data->data = qr->alloc.malloc(new_data->size);
 	if (!new_data->data) ERROR(ERR_ALLOC);
+	memset(new_data->data, 0, new_data->size);
 
 		// helper macro to add bits to new_data
 #define ADD_BITS(value, bits) \
@@ -350,6 +351,7 @@ bool qr_prepare_data(struct qr *qr, const char **error) {
 	qr->data_i.size = cw_total + ec_blocks_len + 1; // +1 for remainder bits
 	qr->data_i.data = qr->alloc.malloc(qr->data_i.size);
 	if (!qr->data_i.data) ERROR(ERR_ALLOC);
+	memset(qr->data_i.data, 0, qr->data_i.size); // clear data
 
 	buf = qr->data.data;
 

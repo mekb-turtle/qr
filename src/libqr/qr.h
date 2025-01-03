@@ -80,7 +80,7 @@ struct qr {
 // qr_init -> qr_encode_* -> qr_prepare_data -> qr_render -> qr_bitmap_read[] -> qr_close
 
 // encode QR code with UTF-8 encoded data
-// qr MUST be zeroed out at least once before calling this function
+// NOTE: *qr MUST be zeroed out at least once before calling this function
 bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data, enum qr_mode mode, uint8_t version, enum qr_ecl ecl, const char **error);
 
 // prepares data for rendering
