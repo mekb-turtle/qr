@@ -2,11 +2,15 @@ name: Meson
 run-name: Build and test with Meson
 on:
   pull_request:
-    branches:
-      - '*'
+    paths:
+      - 'src/**'
+      - 'submodule/**'
+      - 'meson.build'
   push:
-    branches:
-      - '*'
+    paths:
+      - 'src/**'
+      - 'submodule/**'
+      - 'meson.build'
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
