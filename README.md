@@ -24,6 +24,9 @@ This is a simple QR code generator written in C. It reads a string from argument
 
 ## Future plans
 - Micro QR codes (μQR)
+- More encoding modes
+- Multi-encoded QR codes
+- Boost EC level automatically
 
 ## Dependencies
 - `iconv` (glibc)
