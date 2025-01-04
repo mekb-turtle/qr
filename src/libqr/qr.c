@@ -186,7 +186,7 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 	if (!new_data->data) ERROR(ERR_ALLOC);
 	memset(new_data->data, 0, new_data->size);
 
-		// helper macro to add bits to new_data
+	// helper macro to add bits to new_data
 #define ADD_BITS(value, bits) \
 	if (!bit_buffer_add_bits(new_data, value, bits)) ERROR("Failed to add bits: " LINE_STR);
 
@@ -335,12 +335,12 @@ bool qr_prepare_data(struct qr *qr, const char **error) {
 #define ERR_POLY "Failed to calculate error correction data"
 	uint8_t *buf = qr->data.data;
 	for (uint8_t i = 0; i < ec.group1_blocks; ++i) {
-		if (!gf256_poly_div(buf, ec.group1_cw, ec.ec_per_block, &ec_blocks[j])) ERROR(ERR_POLY);
+		if (!gf256_ec_poly_div(buf, ec.group1_cw, ec.ec_per_block, &ec_blocks[j])) ERROR(ERR_POLY);
 		buf += ec.group1_cw;
 		j += ec.ec_per_block;
 	}
 	for (uint8_t i = 0; i < ec.group2_blocks; ++i) {
-		if (!gf256_poly_div(buf, ec.group2_cw, ec.ec_per_block, &ec_blocks[j])) ERROR(ERR_POLY);
+		if (!gf256_ec_poly_div(buf, ec.group2_cw, ec.ec_per_block, &ec_blocks[j])) ERROR(ERR_POLY);
 		buf += ec.group2_cw;
 		j += ec.ec_per_block;
 	}

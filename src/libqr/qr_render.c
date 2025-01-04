@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <stdio.h> // for debugging, TODO: remove
+#include <stdio.h> // for debugging, TODO: remove later
 
 struct qr_render {
 	struct qr_bitmap *bitmap, *mask;
@@ -100,10 +100,118 @@ static bool fetch_bit(struct qr *qr, size_t *byte, uint8_t *bit, bool *out) {
 
 #define QR_RECT(x_, y_, w_, h_) ((struct qr_rect){.x = x_, .y = y_, .w = w_, .h = h_})
 
-uint16_t calculate_penalty(struct qr_render render) {
+static uint16_t calculate_penalty(struct qr_render render) {
 	(void) render;
 	// TODO
 	return 1;
+}
+
+// this runs faster than gf256 since we skip multiplication
+static void info_poly_div(const bool *str, size_t str_len, const bool *generator, size_t generator_len, bool *out) {
+	size_t out_len = str_len + generator_len - 1;
+
+	// create padded string
+	uint8_t pad[out_len];
+	memset(pad, 0, out_len);
+	memcpy(pad, str, str_len);
+
+	// remove any zeroes from left
+	uint8_t offset = 0;
+	while (pad[offset] == 0 && offset < str_len) ++offset;
+
+	// loop until we have the required bits left
+	while (offset < str_len) {
+		// XOR string with generator
+		for (uint8_t i = 0; i < generator_len; i++) pad[i + offset] ^= generator[i];
+
+		// remove the leading zero from the left
+		while (pad[offset] == 0 && offset < str_len) ++offset;
+	}
+	offset = str_len; // pad with zeroes if we went over
+
+	// copy result back
+	for (uint8_t i = 0; i < str_len; i++)
+		out[i] = str[i]; // copy original str back
+	for (uint8_t i = 0; i < generator_len - 1; i++)
+		out[i + str_len] = pad[i + offset]; // copy the remainder of the division
+}
+
+#define LEN(x) (sizeof(x) / sizeof(x[0]))
+
+void get_format_information(enum qr_ecl ecl, uint8_t mask, bool *out) {
+	// out = 15 bytes
+	bool data[5] = {
+	        // L = 01, M = 00, Q = 11, H = 10
+	        ecl == QR_ECL_QUARTILE || ecl == QR_ECL_HIGH,
+	        ecl == QR_ECL_LOW || ecl == QR_ECL_QUARTILE,
+	        mask & 4,
+	        mask & 2,
+	        mask & 1};
+
+	static const bool generator[11] = {1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1};
+
+	// perform polynomial division
+	info_poly_div(data, LEN(data), generator, LEN(generator), out);
+
+	// XOR with mask pattern
+	bool xor_[15] = {1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0};
+	for (uint8_t i = 0; i < 15; i++) {
+		out[i] ^= xor_[i];
+	}
+}
+
+void get_version_information(uint8_t version, bool *out) {
+	// out = 18 bytes
+	bool data[6] = {
+	        version & 0x20,
+	        version & 0x10,
+	        version & 0x08,
+	        version & 0x04,
+	        version & 0x02,
+	        version & 0x01};
+
+	static const bool generator[13] = {1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1};
+
+	// perform polynomial division
+	info_poly_div(data, LEN(data), generator, LEN(generator), out);
+}
+
+#undef LEN
+
+static void write_format_information(struct qr_render render, bool *format) {
+	// format information is 15 bits long
+
+	// top-left corner
+	for (uint8_t x = 0; x < 6; x++) {
+		qr_bitmap_write(render.bitmap, QR_POS(x, 8), format[x]);
+		qr_bitmap_write(render.bitmap, QR_POS(8, x), format[14 - x]);
+	}
+	qr_bitmap_write(render.bitmap, QR_POS(7, 8), format[6]);
+	qr_bitmap_write(render.bitmap, QR_POS(8, 8), format[7]);
+	qr_bitmap_write(render.bitmap, QR_POS(8, 7), format[8]);
+
+	for (uint8_t x = 0; x < 8; x++) {
+		// top-right corner
+		qr_bitmap_write(render.bitmap, QR_POS(render.bitmap->size - 1 - x, 8), format[14 - x]);
+
+		// bottom-left corner
+		if (x > 6) continue;
+		qr_bitmap_write(render.bitmap, QR_POS(8, render.bitmap->size - 1 - x), format[x]);
+	}
+}
+
+static void write_version_information(struct qr_render render, bool *version) {
+	// version information is 18 bits long
+
+	for (uint8_t i = 0, index = 17; i < 6; ++i) {
+		for (uint8_t j = 0; j < 3; ++j, --index) {
+			// bottom-left corner
+			qr_bitmap_write(render.bitmap, QR_POS(i, render.bitmap->size - 11 + j), version[index]);
+
+			// top-right corner
+			qr_bitmap_write(render.bitmap, QR_POS(render.bitmap->size - 11 + j, i), version[index]);
+		}
+	}
 }
 
 void apply_mask(struct qr_render render, uint8_t i) {
@@ -266,24 +374,40 @@ bool qr_render(struct qr *qr, const char **error, uint8_t mask) {
 		alt = !alt; // alternate back and forth
 	}
 
+	// write version information for version 7 and up
+	if (qr->version >= 7) {
+		bool version_bits[18];
+		get_version_information(qr->version, version_bits);
+		write_version_information(render, version_bits);
+	}
+
+	bool format_bits[15];
+
 	if (mask == QR_MASK_AUTO) {
 		uint16_t penalty = 0;
 
 		// apply best mask
-		for (uint8_t i = 0; i < 8; i++) {
-			apply_mask(render, i);
+		for (uint8_t m = 0; m < 8; m++) {
+			apply_mask(render, m);
+
+			get_format_information(qr->ecl, mask, format_bits);
+			write_format_information(render, format_bits);
+
 			uint16_t new_penalty = calculate_penalty(render);
-			if (i == 0 || new_penalty < penalty) {
+			if (m == 0 || new_penalty < penalty) {
 				penalty = new_penalty;
-				mask = i;
+				mask = m;
 			}
-			apply_mask(render, i); // XOR twice will undo the mask
+			apply_mask(render, m); // XOR twice will undo the mask
 		}
 	} else {
 		mask &= 7; // trim to 0-7
 		printf("Forcing mask %d\n", mask);
 	}
 	apply_mask(render, mask);
+
+	get_format_information(qr->ecl, mask, format_bits);
+	write_format_information(render, format_bits);
 
 	// write format information
 

@@ -14,7 +14,7 @@ void output_module(bool actual, bool expected) {
 		printf(" ");
 	} else {
 		// output an X if the values don't match
-		printf("\x1b[38;5;1mX");
+		printf("\x1b[38;5;9mX");
 	}
 	printf("\x1b[0m");
 }
@@ -76,7 +76,7 @@ int main() {
 
 	FILE *file = fopen(bin_filename, "rb");
 	if (!file) {
-		FAIL("fopen");
+		FAIL("%s", bin_filename);
 		return 77; // skip test
 	}
 
@@ -101,6 +101,7 @@ int main() {
 			}
 			if (c == ' ') break;
 			FAIL("unexpected character: %c", c);
+			fclose(file);
 			return 1;
 		}
 
@@ -111,19 +112,21 @@ int main() {
 		test_bitmap.data = alloc.malloc(test_bitmap.data_size);
 		if (!test_bitmap.data) {
 			FAIL("malloc");
+			fclose(file);
 			return 1;
 		}
 
 		if (fread(test_bitmap.data, 1, test_bitmap.data_size, file) != test_bitmap.data_size) {
 			FAIL("fread");
 			alloc.free(test_bitmap.data);
+			fclose(file);
 			return 1;
 		}
 
 		if (!match) {
 			// skip this version since the sizes don't match
 			ret = 1;
-			continue;
+			goto next;
 		}
 
 		qr_close(&qr);
@@ -133,7 +136,7 @@ int main() {
 			alloc.free(test_bitmap.data);
 			FAIL("qr_encode_utf8: %s", error);
 			if (error) printf("error: %s\n", error);
-			continue;
+			goto next;
 		}
 		ASSERT(qr.ecl, ==, QR_ECL_LOW, FMT_INT, result = false);
 		ASSERT(qr.mode, ==, QR_MODE_BYTE, FMT_INT, result = false);
@@ -141,25 +144,31 @@ int main() {
 		ASSERT(qr.char_count, ==, 14, FMT_INT, result = false);
 		if (!result) {
 			ret = 1;
-			continue;
+			goto next;
 		}
 		if (!qr_prepare_data(&qr, &error)) {
 			FAIL("qr_prepare_data: %s", error);
 			ret = 1;
-			continue;
+			goto next;
 		}
 		if (!qr_render(&qr, &error, QR_MASK_AUTO)) {
 			FAIL("qr_generate: %s", error);
 			ret = 1;
-			continue;
+			goto next;
 		}
 		if (!qr_bitmap_compare(qr.output, test_bitmap)) {
 			FAIL("qr_bitmap_compare");
 			ret = 1;
-			continue;
+			goto next;
 		}
+
+	next:
+		alloc.free(test_bitmap.data);
+
+		qr_close(&qr);
 	}
-	qr_close(&qr);
+
+	fclose(file);
 
 	return ret;
 }

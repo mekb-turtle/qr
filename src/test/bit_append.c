@@ -40,12 +40,12 @@ int main() {
 	uint32_t value = 0x35;
 	uint8_t bits = 7;
 
-#define ADD_BITS                            \
-	{                                       \
+#define ADD_BITS                                       \
+	{                                                  \
 		if (!bit_buffer_add_bits(&buf, value, bits)) { \
 			FAIL("bit_buffer_add_bits");               \
-			ret = 1;                        \
-		}                                   \
+			ret = 1;                                   \
+		}                                              \
 	}
 
 	ADD_BITS;

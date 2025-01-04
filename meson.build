@@ -14,7 +14,7 @@ test_d = 'src' / 'test'
 
 # define source files
 src_all = files()  # included for all the following
-header_libqr = files(libqr_d / 'qr.h', libqr_d / 'bit_buffer.h')
+header_libqr = files(libqr_d / 'qr.h')
 src_libqr = header_libqr + files(
     libqr_d / 'qr.c',
     libqr_d / 'bit_buffer.c',
@@ -54,6 +54,8 @@ tests = [
     {'files': files(test_d / 'qr_encode.c')},
     {'files': files(test_d / 'qr_output' / 'qr_output.c')},
     {'files': files(test_d / 'alignment.c')},
+    {'files': files(test_d / 'format_information.c')},
+    {'files': files(test_d / 'version_information.c')},
 ]
 
 # define project metadata

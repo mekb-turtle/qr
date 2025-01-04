@@ -12,8 +12,8 @@ int main() {
 	const char *error = NULL;
 	struct qr qr;
 	memset(&qr, 0, sizeof(qr));
-	bool res = qr_encode_utf8(&qr, alloc, "HELLO WORLD", QR_MODE_AUTO, QR_VERSION_AUTO, QR_ECL_LOW, &error);
-	if (!res) {
+	bool result = qr_encode_utf8(&qr, alloc, "HELLO WORLD", QR_MODE_AUTO, QR_VERSION_AUTO, QR_ECL_LOW, &error);
+	if (!result) {
 		FAIL("qr_encode_utf8");
 		if (error) printf("error: %s\n", error);
 	} else {
@@ -22,10 +22,10 @@ int main() {
 		ASSERT(qr.mode, ==, QR_MODE_ALPHANUMERIC, FMT_INT, match = false);
 		ASSERT(qr.version, ==, 1, FMT_INT, match = false);
 		ASSERT(qr.char_count, ==, 11, FMT_INT, match = false);
-		if (!match) res = 1;
+		if (!match) ret = 1;
 		else {
-			res = qr_prepare_data(&qr, &error);
-			if (!res) {
+			result = qr_prepare_data(&qr, &error);
+			if (!result) {
 				FAIL("qr_prepare_data");
 				if (error) printf("error: %s\n", error);
 				ret = 1;
@@ -53,8 +53,8 @@ int main() {
 	qr_close(&qr);
 
 	// test with a larger string
-	res = qr_encode_utf8(&qr, alloc, "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz", QR_MODE_AUTO, 5, QR_ECL_MEDIUM, &error);
-	if (!res) {
+	result = qr_encode_utf8(&qr, alloc, "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz", QR_MODE_AUTO, 5, QR_ECL_MEDIUM, &error);
+	if (!result) {
 		FAIL("qr_encode_utf8");
 		if (error) printf("error: %s\n", error);
 	} else {
@@ -67,8 +67,8 @@ int main() {
 	qr_close(&qr);
 
 	// test with numeric mode at a higher verion
-	res = qr_encode_utf8(&qr, alloc, "1234567890", QR_MODE_AUTO, 30, QR_ECL_HIGH, &error);
-	if (!res) {
+	result = qr_encode_utf8(&qr, alloc, "1234567890", QR_MODE_AUTO, 30, QR_ECL_HIGH, &error);
+	if (!result) {
 		FAIL("qr_encode_utf8");
 		if (error) printf("error: %s\n", error);
 	} else {
@@ -81,9 +81,9 @@ int main() {
 	qr_close(&qr);
 
 	// test with a string that requires kanji mode
-	res = qr_encode_utf8(&qr, alloc, "ぁあぃいぅうぇえぉおかがきぎく", QR_MODE_AUTO, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
+	result = qr_encode_utf8(&qr, alloc, "ぁあぃいぅうぇえぉおかがきぎく", QR_MODE_AUTO, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
 
-	if (!res) {
+	if (!result) {
 		FAIL("qr_encode_utf8");
 		if (error) printf("error: %s\n", error);
 	} else {
@@ -96,9 +96,9 @@ int main() {
 	qr_close(&qr);
 
 	// test empty strings
-	res = qr_encode_utf8(&qr, alloc, "", QR_MODE_AUTO, 0, QR_ECL_HIGH, &error);
+	result = qr_encode_utf8(&qr, alloc, "", QR_MODE_AUTO, 0, QR_ECL_HIGH, &error);
 
-	if (!res) {
+	if (!result) {
 		FAIL("qr_encode_utf8");
 		if (error) printf("error: %s\n", error);
 	} else {
@@ -109,9 +109,9 @@ int main() {
 
 	qr_close(&qr);
 
-	res = qr_encode_utf8(&qr, alloc, "", QR_MODE_NUMERIC, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
+	result = qr_encode_utf8(&qr, alloc, "", QR_MODE_NUMERIC, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
 
-	if (!res) {
+	if (!result) {
 		FAIL("qr_encode_utf8");
 		if (error) printf("error: %s\n", error);
 	} else {
@@ -123,9 +123,9 @@ int main() {
 
 	qr_close(&qr);
 
-	res = qr_encode_utf8(&qr, alloc, "", QR_MODE_ALPHANUMERIC, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
+	result = qr_encode_utf8(&qr, alloc, "", QR_MODE_ALPHANUMERIC, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
 
-	if (!res) {
+	if (!result) {
 		FAIL("qr_encode_utf8");
 		if (error) printf("error: %s\n", error);
 	} else {
@@ -137,9 +137,9 @@ int main() {
 
 	qr_close(&qr);
 
-	res = qr_encode_utf8(&qr, alloc, "", QR_MODE_BYTE, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
+	result = qr_encode_utf8(&qr, alloc, "", QR_MODE_BYTE, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
 
-	if (!res) {
+	if (!result) {
 		FAIL("qr_encode_utf8");
 		if (error) printf("error: %s\n", error);
 	} else {
@@ -151,9 +151,9 @@ int main() {
 
 	qr_close(&qr);
 
-	res = qr_encode_utf8(&qr, alloc, "", QR_MODE_KANJI, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
+	result = qr_encode_utf8(&qr, alloc, "", QR_MODE_KANJI, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
 
-	if (!res) {
+	if (!result) {
 		FAIL("qr_encode_utf8");
 		if (error) printf("error: %s\n", error);
 	} else {
@@ -164,6 +164,49 @@ int main() {
 	}
 
 	qr_close(&qr);
+
+	// test with very long string
+	char *str = alloc.malloc(920);
+	if (!str) {
+		FAIL("malloc");
+		return 1;
+	}
+	for (size_t i = 0, c = 0; i < 919; i++, c %= 10) str[i] = '0' + (c++);
+	str[919] = '\0';
+
+	result = qr_encode_utf8(&qr, alloc, str, QR_MODE_AUTO, 5, QR_ECL_HIGH, &error);
+
+	if (!result) {
+		FAIL("qr_encode_utf8");
+		if (error) printf("error: %s\n", error);
+	} else {
+		bool match = true;
+		ASSERT(qr.ecl, ==, QR_ECL_HIGH, FMT_INT, match = 0);
+		ASSERT(qr.mode, ==, QR_MODE_NUMERIC, FMT_INT, match = 0);
+		ASSERT(qr.version, ==, 20, FMT_INT, match = 0);
+		ASSERT(qr.char_count, ==, 919, FMT_INT, match = 0);
+		if (!match) ret = 1;
+		else {
+			result = qr_prepare_data(&qr, &error);
+			if (!result) {
+				FAIL("qr_prepare_data");
+				if (error) printf("error: %s\n", error);
+				ret = 1;
+			} else {
+				uint8_t expected_i[] = {
+#include "qr_encode_data.h"
+				};
+				ASSERT(qr.data_i.byte_index, ==, LEN(expected_i), FMT_INT, ret = 1);
+				if (qr.data_i.byte_index == LEN(expected_i)) {
+					for (size_t i = 0; i < qr.data_i.byte_index; i++) {
+						printf("i: %zu: ", i);
+						ASSERT(((uint8_t *) qr.data_i.data)[i], ==, expected_i[i], FMT_HEX, ret = 1);
+					}
+				}
+			}
+		}
+	}
+
 
 	return ret;
 }

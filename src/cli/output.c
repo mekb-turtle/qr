@@ -104,7 +104,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 			uint8_t bytes_per_pixel = bytes_per_channel * channels;
 
 			if (bitmap.size > SIZE_MAX / bytes_per_pixel) ERROR("Bitmap too large");
-			size_t image_stride = (size_t)bitmap.size * bytes_per_pixel;
+			size_t image_stride = (size_t) bitmap.size * bytes_per_pixel;
 			if (image_stride > SIZE_MAX / bitmap.size) ERROR("Bitmap too large");
 			size_t image_size = bitmap.size * image_stride;
 			image = qr->alloc.malloc(image_size);

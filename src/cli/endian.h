@@ -2,7 +2,7 @@
 #define ENDIAN_H
 #include <stdint.h>
 #include <stdbool.h>
-	
+
 bool is_little_endian();
 uint16_t endian16_swap(uint16_t val);
 uint32_t endian32_swap(uint32_t val);

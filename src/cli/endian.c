@@ -16,4 +16,3 @@ uint32_t endian32_swap(uint32_t val) {
 	       ((0x0000FF00 & val) << 010) |
 	       ((0x000000FF & val) << 030);
 }
-
