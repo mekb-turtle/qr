@@ -369,12 +369,12 @@ bool qr_prepare_data(struct qr *qr, const char **error) {
 	uint8_t *group1 = &buf[0];
 	uint8_t *group2 = &buf[ec.group1_blocks * ec.group1_cw];
 	for (size_t cw = 0; cw < MAX(ec.group1_cw, ec.group2_cw); ++cw) {
-		// loop blocks from first group
+		// add blocks from first group
 		if (cw < ec.group1_cw)
 			for (size_t block = 0; block < ec.group1_blocks; ++block) {
 				ADD_CW(group1[cw + ec.group1_cw * block]);
 			}
-		// loop blocks from second group
+		// add blocks from second group
 		if (cw < ec.group2_cw)
 			for (size_t block = 0; block < ec.group2_blocks; ++block) {
 				ADD_CW(group2[cw + ec.group2_cw * block]);

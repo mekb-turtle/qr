@@ -12,15 +12,42 @@ int main() {
 	const char *error = NULL;
 	struct qr qr;
 	memset(&qr, 0, sizeof(qr));
-	bool res = qr_encode_utf8(&qr, alloc, "HELLO WORLD", QR_MODE_AUTO, 0, QR_ECL_LOW, &error);
+	bool res = qr_encode_utf8(&qr, alloc, "HELLO WORLD", QR_MODE_AUTO, QR_VERSION_AUTO, QR_ECL_LOW, &error);
 	if (!res) {
 		FAIL("qr_encode_utf8");
 		if (error) printf("error: %s\n", error);
 	} else {
-		ASSERT(qr.ecl, ==, QR_ECL_LOW, FMT_INT, ret = 1);
-		ASSERT(qr.mode, ==, QR_MODE_ALPHANUMERIC, FMT_INT, ret = 1);
-		ASSERT(qr.version, ==, 1, FMT_INT, ret = 1);
-		ASSERT(qr.char_count, ==, 11, FMT_INT, ret = 1);
+		bool match = true;
+		ASSERT(qr.ecl, ==, QR_ECL_LOW, FMT_INT, match = false);
+		ASSERT(qr.mode, ==, QR_MODE_ALPHANUMERIC, FMT_INT, match = false);
+		ASSERT(qr.version, ==, 1, FMT_INT, match = false);
+		ASSERT(qr.char_count, ==, 11, FMT_INT, match = false);
+		if (!match) res = 1;
+		else {
+			res = qr_prepare_data(&qr, &error);
+			if (!res) {
+				FAIL("qr_prepare_data");
+				if (error) printf("error: %s\n", error);
+				ret = 1;
+			} else {
+				// thanks to https://www.nayuki.io/page/creating-a-qr-code-step-by-step
+				uint8_t expected[] = {0x20, 0x5B, 0x0B, 0x78, 0xD1, 0x72, 0xDC, 0x4D, 0x43, 0x40, 0xEC, 0x11, 0xEC, 0x11, 0xEC, 0x11, 0xEC, 0x11, 0xEC};
+#define LEN(x) (sizeof(x) / sizeof(x[0]))
+				ASSERT(qr.data.byte_index, ==, LEN(expected), FMT_INT, ret = 1);
+				if (qr.data.byte_index == LEN(expected)) {
+					for (size_t i = 0; i < qr.data.byte_index; i++) {
+						ASSERT(((uint8_t *) qr.data.data)[i], ==, expected[i], FMT_HEX, ret = 1);
+					}
+				}
+				uint8_t expected_i[] = {0x20, 0x5B, 0x0B, 0x78, 0xD1, 0x72, 0xDC, 0x4D, 0x43, 0x40, 0xEC, 0x11, 0xEC, 0x11, 0xEC, 0x11, 0xEC, 0x11, 0xEC, 0xD1, 0xEF, 0xC4, 0xCF, 0x4E, 0xC3, 0x6D};
+				ASSERT(qr.data_i.byte_index, ==, LEN(expected_i), FMT_INT, ret = 1);
+				if (qr.data_i.byte_index == LEN(expected_i)) {
+					for (size_t i = 0; i < qr.data_i.byte_index; i++) {
+						ASSERT(((uint8_t *) qr.data_i.data)[i], ==, expected_i[i], FMT_HEX, ret = 1);
+					}
+				}
+			}
+		}
 	}
 
 	qr_close(&qr);
@@ -54,7 +81,7 @@ int main() {
 	qr_close(&qr);
 
 	// test with a string that requires kanji mode
-	res = qr_encode_utf8(&qr, alloc, "ぁあぃいぅうぇえぉおかがきぎく", QR_MODE_AUTO, 0, QR_ECL_HIGH, &error);
+	res = qr_encode_utf8(&qr, alloc, "ぁあぃいぅうぇえぉおかがきぎく", QR_MODE_AUTO, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
 
 	if (!res) {
 		FAIL("qr_encode_utf8");
@@ -82,7 +109,7 @@ int main() {
 
 	qr_close(&qr);
 
-	res = qr_encode_utf8(&qr, alloc, "", QR_MODE_NUMERIC, 0, QR_ECL_HIGH, &error);
+	res = qr_encode_utf8(&qr, alloc, "", QR_MODE_NUMERIC, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
 
 	if (!res) {
 		FAIL("qr_encode_utf8");
@@ -96,7 +123,7 @@ int main() {
 
 	qr_close(&qr);
 
-	res = qr_encode_utf8(&qr, alloc, "", QR_MODE_ALPHANUMERIC, 0, QR_ECL_HIGH, &error);
+	res = qr_encode_utf8(&qr, alloc, "", QR_MODE_ALPHANUMERIC, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
 
 	if (!res) {
 		FAIL("qr_encode_utf8");
@@ -110,7 +137,7 @@ int main() {
 
 	qr_close(&qr);
 
-	res = qr_encode_utf8(&qr, alloc, "", QR_MODE_BYTE, 0, QR_ECL_HIGH, &error);
+	res = qr_encode_utf8(&qr, alloc, "", QR_MODE_BYTE, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
 
 	if (!res) {
 		FAIL("qr_encode_utf8");
@@ -124,7 +151,7 @@ int main() {
 
 	qr_close(&qr);
 
-	res = qr_encode_utf8(&qr, alloc, "", QR_MODE_KANJI, 0, QR_ECL_HIGH, &error);
+	res = qr_encode_utf8(&qr, alloc, "", QR_MODE_KANJI, QR_VERSION_AUTO, QR_ECL_HIGH, &error);
 
 	if (!res) {
 		FAIL("qr_encode_utf8");

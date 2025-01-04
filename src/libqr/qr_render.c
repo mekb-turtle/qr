@@ -25,9 +25,9 @@ struct qr_rect {
 	};
 };
 
-static bool write(struct qr_render render, struct qr_pos pos, bool value, bool override) {
+static bool write(struct qr_render render, struct qr_pos pos, bool value, bool override, bool mask) {
 	if (qr_bitmap_read(*render.mask, pos) && !override) return false;
-	if (!qr_bitmap_write(render.mask, pos, true)) return false;
+	if (!qr_bitmap_write(render.mask, pos, mask)) return false;
 	if (!qr_bitmap_write(render.bitmap, pos, value)) return false;
 	return true;
 }
@@ -36,7 +36,7 @@ static void write_rect(struct qr_render render, struct qr_rect rect, bool value,
 	for (qr_t y = 0; y < rect.h; y++) {
 		for (qr_t x = 0; x < rect.w; x++) {
 			struct qr_pos pos = QR_POS(rect.x + x, rect.y + y);
-			write(render, pos, value, override);
+			write(render, pos, value, override, true);
 		}
 	}
 }
@@ -50,7 +50,7 @@ static void write_finder(struct qr_render render, struct qr_pos pos) {
 			uint8_t chebyshev = MAX(DIFF(x, 4), DIFF(y, 4));
 			bool fill = chebyshev < 2 || chebyshev == 3; // see the squares in the 3 corners
 			struct qr_pos p = QR_POS(pos.x + x - 1, pos.y + y - 1);
-			write(render, p, fill, true); // not concerned with return value
+			write(render, p, fill, true, true); // not concerned with return value
 		}
 	}
 }
@@ -61,7 +61,7 @@ static void write_alignment(struct qr_render render, struct qr_pos pos) {
 			uint8_t chebyshev = MAX(DIFF(x, 2), DIFF(y, 2));
 			bool fill = chebyshev != 1;
 			struct qr_pos p = QR_POS(pos.x + x - 2, pos.y + y - 2);
-			write(render, p, fill, true);
+			write(render, p, fill, true, true);
 		}
 	}
 }
@@ -86,7 +86,7 @@ static bool fetch_bit(struct qr *qr, size_t *byte, uint8_t *bit, bool *out) {
 	if (*byte == qr->data_i.byte_index && *bit >= qr->data_i.bit_index) return false;
 
 	// read bit
-	*out = ((const uint8_t *) qr->data_i.data)[*byte] & (1 << *bit);
+	*out = ((const uint8_t *) qr->data_i.data)[*byte] & (0x80 >> *bit);
 
 	// move to next bit
 	++*bit;
@@ -177,8 +177,8 @@ bool qr_render(struct qr *qr, const char **error, uint8_t mask) {
 
 	// write timing patterns
 	for (qr_t i = 8; i < qr->output.size - 8; i++) {
-		write(render, QR_POS(i, 6), i % 2 == 0, true); // horizontal
-		write(render, QR_POS(6, i), i % 2 == 0, true); // vertical
+		write(render, QR_POS(i, 6), i % 2 == 0, true, true); // horizontal
+		write(render, QR_POS(6, i), i % 2 == 0, true, true); // vertical
 	}
 
 	// write alignment patterns
@@ -198,7 +198,7 @@ bool qr_render(struct qr *qr, const char **error, uint8_t mask) {
 	}
 
 	// write dark module
-	write(render, QR_POS(8, qr->output.size - 8), true, true);
+	write(render, QR_POS(8, qr->output.size - 8), true, true, true);
 
 	// reserve space for format information
 	struct qr_rect reserved[6] = {
@@ -230,7 +230,7 @@ bool qr_render(struct qr *qr, const char **error, uint8_t mask) {
 			if (!fetch_bit(qr, &byte_index, &bit_index, &bit)) ERROR("Failed to fetch bit");
 
 			// write module
-			if (!write(render, pos, bit, false)) break;
+			if (!write(render, pos, bit, false, false)) break;
 		}
 
 		// move to next module, zigzag pattern
