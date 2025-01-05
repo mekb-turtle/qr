@@ -1,7 +1,6 @@
 #!/bin/bash
 # generates the required test data for qr_output.c
-# requires the qrcode package from npm
-# requires imagemagick and perl
+# requires qrencode, imagemagick, and perl
 
 set -e -u -o pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
@@ -19,9 +18,9 @@ if ! type "$PERL" &>/dev/null; then
 	exit 1
 fi
 
-QRCODE=qrcode
-if ! type "$QRCODE" &>/dev/null; then
-	echo "qrcode not found" >&2
+QRENCODE=qrencode
+if ! type "$QRENCODE" &>/dev/null; then
+	echo "qrencode not found" >&2
 	exit 1
 fi
 
@@ -30,5 +29,5 @@ if [[ -e "$bin_file" ]]; then
 	rm "$bin_file" # remove the old file
 fi
 for i in {1..40}; do
-	"$QRCODE" -s 1 -q 0 -o /dev/stdout "test string..." -e L -v "$i" | "$MAGICK" - txt:- | "$PERL" qr_output.pl "$bin_file"
+	"$QRENCODE" -s 1 -m 0 -o - "test string..." -l L -v "$i" | "$MAGICK" - txt:- | "$PERL" qr_output.pl "$bin_file"
 done

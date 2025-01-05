@@ -22,13 +22,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential meson ninja-build perl imagemagick
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install npm packages
-        run: npm install -g qrcode
+          sudo apt-get install -y build-essential meson ninja-build perl imagemagick qrencode
       - name: Configure project
         run: meson setup build --buildtype=release --prefer-static -D default_library=static --prefix=${{github.workspace}}/out/ --reconfigure
       - name: Build project
