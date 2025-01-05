@@ -159,18 +159,25 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 		if (opt.format == OUTPUT_HTML) {
 			// HTML header
 			float perc = 100.0 / bitmap.size;
-			PRINT("<!DOCTYPE html><html><head><title>QR Code</title><style>\n");
-			PRINT("body {background-color:rgb(%u,%u,%u); color:rgb(%u,%u,%u); margin:0; overflow-x: hidden;}\n", opt.bg.r, opt.bg.g, opt.bg.b, opt.fg.r, opt.fg.g, opt.fg.b);
-			PRINT("table {border-collapse:collapse;}\n");
-			PRINT("td {width:%fvw;height:%fvw;}\n", perc, perc); // scale to fit
-			PRINT("td.a {background-color:rgb(%u,%u,%u);}\n", opt.fg.r, opt.fg.g, opt.fg.b);
-			PRINT("td.b {background-color:rgb(%u,%u,%u);}\n", opt.bg.r, opt.bg.g, opt.bg.b);
-			PRINT("</style>\n");
-			PRINT("<meta charset=\"UTF-8\">\n");
-			PRINT("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
-			PRINT("<meta name=\"darkreader-lock\">");
-			PRINT("</head><body>\n");
-			PRINT("<table>\n");
+			PRINT("<!DOCTYPE html><html><head><title>QR Code</title><style>"
+
+			      "body{background-color:rgb(%u,%u,%u);color:rgb(%u,%u,%u);" // set page colors
+			      "margin:0;overflow-x:hidden;}",                            // remove margin and h scroll
+			      opt.bg.r, opt.bg.g, opt.bg.b, opt.fg.r, opt.fg.g, opt.fg.b);
+			PRINT("table{border-collapse:collapse;}"       // remove cell spacing
+			      "td{width:%fvw;height:%fvw;"             // set cell size to fraction of viewport width
+			      "aspect-ratio:1/1;padding:0;margin:0;}", // square cells
+			      perc, perc);                             // scale to fit
+
+			PRINT("td.a{background-color:rgb(%u,%u,%u);}", opt.fg.r, opt.fg.g, opt.fg.b); // set fg color
+			PRINT("td.b{background-color:rgb(%u,%u,%u);}", opt.bg.r, opt.bg.g, opt.bg.b); // set bg color
+
+			PRINT("</style>"
+			      "<meta charset=\"UTF-8\">"
+			      "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+			      "<meta name=\"darkreader-lock\">" // prevent Dark Reader from messing with colors
+			      "</head><body>"
+			      "<table>");
 		}
 		// loop pixels
 
