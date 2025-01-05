@@ -53,7 +53,7 @@ int main() {
 	int ret = 0;
 
 	for (uint8_t version = 1; version <= 40; version++) {
-		printf("version %" PRIdPTR ":\n", version);
+		printf("version %" PRIu8 ":\n", version);
 		uint8_t out[7];
 		uint8_t result = get_alignment_locations(version, out);
 		uint8_t *exp = expected[version - 1];
