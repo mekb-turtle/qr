@@ -52,14 +52,14 @@ static uint8_t expected[40][8] = {
 int main() {
 	int ret = 0;
 
-	for (size_t version = 1; version <= 40; version++) {
+	for (uint8_t version = 1; version <= 40; version++) {
 		printf("version %" PRIdPTR ":\n", version);
 		uint8_t out[7];
 		uint8_t result = get_alignment_locations(version, out);
 		uint8_t *exp = expected[version - 1];
 		ASSERT(result, ==, exp[0], FMT_INT, ret = 1);
 		if (result != exp[0]) continue;
-		for (size_t j = 0; j < result; j++) {
+		for (uint8_t j = 0; j < result; j++) {
 			ASSERT(out[j], ==, exp[j + 1], FMT_INT, ret = 1);
 		}
 	}

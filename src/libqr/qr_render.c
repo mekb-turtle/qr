@@ -402,7 +402,7 @@ bool qr_render(struct qr *qr, const char **error, uint8_t mask) {
 		}
 	} else {
 		mask &= 7; // trim to 0-7
-		printf("Forcing mask %d\n", mask);
+		printf("Forcing mask %" PRIu8 "\n", mask);
 	}
 	apply_mask(render, mask);
 

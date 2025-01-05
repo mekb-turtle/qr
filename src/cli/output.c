@@ -4,6 +4,7 @@
 #include <string.h>
 #include "stbi_write.h"
 #include "endian.h"
+#include <inttypes.h>
 
 #define ERR_ALLOC "Failed to allocate memory"
 
@@ -161,16 +162,18 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 			float perc = 100.0 / bitmap.size;
 			PRINT("<!DOCTYPE html><html><head><title>QR Code</title><style>"
 
-			      "body{background-color:rgb(%u,%u,%u);color:rgb(%u,%u,%u);" // set page colors
-			      "margin:0;overflow-x:hidden;}",                            // remove margin and h scroll
+			      "body{"
+			      "background-color:rgb(%" PRIu8 ",%" PRIu8 ",%" PRIu8 ");" // set page colors
+			      "color:rgb(%" PRIu8 ",%" PRIu8 ",%" PRIu8 ");"
+			      "margin:0;overflow-x:hidden;}", // remove margin and h scroll
 			      opt.bg.r, opt.bg.g, opt.bg.b, opt.fg.r, opt.fg.g, opt.fg.b);
 			PRINT("table{border-collapse:collapse;}"       // remove cell spacing
 			      "td{width:%fvw;height:%fvw;"             // set cell size to fraction of viewport width
 			      "aspect-ratio:1/1;padding:0;margin:0;}", // square cells
 			      perc, perc);                             // scale to fit
 
-			PRINT("td.a{background-color:rgb(%u,%u,%u);}", opt.fg.r, opt.fg.g, opt.fg.b); // set fg color
-			PRINT("td.b{background-color:rgb(%u,%u,%u);}", opt.bg.r, opt.bg.g, opt.bg.b); // set bg color
+			PRINT("td.a{background-color:rgb(%" PRIu8 ",%" PRIu8 ",%" PRIu8 ");}", opt.fg.r, opt.fg.g, opt.fg.b); // set fg color
+			PRINT("td.b{background-color:rgb(%" PRIu8 ",%" PRIu8 ",%" PRIu8 ");}", opt.bg.r, opt.bg.g, opt.bg.b); // set bg color
 
 			PRINT("</style>"
 			      "<meta charset=\"UTF-8\">"

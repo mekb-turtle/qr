@@ -48,7 +48,7 @@ int main() {
 	bool out[18];
 	for (uint8_t version = 7; version <= 40; ++version) {
 		memset(out, 0, sizeof(out));
-		printf("version %d:\n", version);
+		printf("version %" PRIu8 ":\n", version);
 		get_version_information(version, out);
 		size_t i = version - 7;
 		for (uint8_t bit = 0; bit < 18; bit++) {

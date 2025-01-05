@@ -30,6 +30,9 @@ struct qr_alloc {
 typedef uint32_t qr_t;
 #define QR_MIN (0)
 #define QR_MAX (UINT32_MAX)
+#ifdef PRIu32
+#define PRIuQR PRIu32
+#endif
 
 struct qr_pos {
 	qr_t x, y;

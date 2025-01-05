@@ -12,7 +12,7 @@ bool bit_buffer_add_bits(struct qr_bit_buffer *buf, uint32_t value, uint8_t bits
 	eprintf("Adding %u bits to %p: ", bits, (void *) buf);
 	for (uint8_t i = 0; i < bits; ++i) {
 		// loop bits
-		eprintf("%d", (value >> (bits - i - 1)) & 1);
+		eprintf("%" PRIu8, (value >> (bits - i - 1)) & 1);
 	}
 	eprintf("\n");
 #endif

@@ -2,13 +2,14 @@
 #include <string.h>
 #include "../libqr/bit_buffer.h"
 #include "test.h"
+#include <inttypes.h>
 
 static void print_bits(uint8_t *data, size_t len) {
 	for (size_t i = 0; i < len; i++) {
 		if (i > 0) printf(" ");
 		for (size_t j = 0; j < 8; j++) {
 			// print bit
-			printf("%d", (data[i] >> (7 - j)) & 1);
+			printf("%" PRIu8, (data[i] >> (7 - j)) & 1);
 		}
 	}
 	printf("\n");

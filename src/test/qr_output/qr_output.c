@@ -21,7 +21,7 @@ void output_module(bool actual, bool expected) {
 
 bool qr_bitmap_compare(struct qr_bitmap actual, struct qr_bitmap expected) {
 	if (actual.size != expected.size) {
-		printf("mismatched sizes: %d (A) vs %d (E)\n", actual.size, expected.size);
+		printf("mismatched sizes: %" PRIuQR " (A) vs %" PRIuQR " (E)\n", actual.size, expected.size);
 		return false;
 	}
 
