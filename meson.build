@@ -56,6 +56,7 @@ tests = [
     {'files': files(test_d / 'alignment.c')},
     {'files': files(test_d / 'format_information.c')},
     {'files': files(test_d / 'version_information.c')},
+    {'files': files(test_d / 'qr_mask_penalty.c')},
 ]
 
 # define project metadata

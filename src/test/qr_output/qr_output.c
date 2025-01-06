@@ -5,6 +5,7 @@
 #include <string.h>
 #include <inttypes.h>
 #include "../../libqr/qr.h"
+#include "../../libqr/qr_render.h"
 #include "../../libqr/util.h"
 #include "../test.h"
 
@@ -28,10 +29,8 @@ bool qr_bitmap_compare(struct qr_bitmap actual, struct qr_bitmap expected) {
 
 	bool exact_match = true;
 	struct qr_pos pos;
-	bool fits = actual.size < 80;
 
 	printf("Actual");
-	if (fits) printf("%*sExpected", actual.size < 4 ? 0 : actual.size - 4, "");
 	for (pos.y = 0; pos.y < actual.size; ++pos.y) {
 		printf("\n");
 		for (pos.x = 0; pos.x < actual.size; ++pos.x) {
@@ -40,26 +39,8 @@ bool qr_bitmap_compare(struct qr_bitmap actual, struct qr_bitmap expected) {
 			if (a_val != e_val) exact_match = false;
 			output_module(a_val, e_val);
 		}
-		if (!fits) continue;
-		printf("  ");
-		for (pos.x = 0; pos.x < actual.size; ++pos.x) {
-			bool e_val = qr_bitmap_read(expected, pos);
-			output_module(e_val, e_val);
-		}
 	}
-
 	printf("\n");
-	if (!fits) {
-		printf("Expected\n");
-		// doesn't fit on the screen if its side-by-side
-		for (pos.y = 0; pos.y < actual.size; ++pos.y) {
-			for (pos.x = 0; pos.x < actual.size; ++pos.x) {
-				bool e_val = qr_bitmap_read(expected, pos);
-				output_module(e_val, e_val);
-			}
-			printf("\n");
-		}
-	}
 
 	return exact_match;
 }
@@ -157,6 +138,11 @@ int main() {
 			ret = 1;
 			goto next;
 		}
+
+		uint16_t penalty[4];
+		calculate_penalty(qr.output, &penalty[0], &penalty[1], &penalty[2], &penalty[3]);
+		printf("penalty: %" PRIu16 " %" PRIu16 " %" PRIu16 " %" PRIu16 "\n", penalty[0], penalty[1], penalty[2], penalty[3]);
+
 		if (!qr_bitmap_compare(qr.output, test_bitmap)) {
 			FAIL("qr_bitmap_compare");
 			ret = 1;

@@ -4,8 +4,9 @@
 #include <stdint.h>
 #include <string.h>
 #include <inttypes.h>
+#include "bit_buffer.h"
 
-#include <stdio.h> // for debugging, TODO: remove later
+#include <stdio.h>
 
 struct qr_render {
 	struct qr_bitmap *bitmap, *mask;
@@ -101,10 +102,91 @@ static bool fetch_bit(struct qr *qr, size_t *byte, uint8_t *bit, bool *out) {
 
 #define QR_RECT(x_, y_, w_, h_) ((struct qr_rect){.x = x_, .y = y_, .w = w_, .h = h_})
 
-static uint16_t calculate_penalty(struct qr_render render) {
-	(void) render;
-	// TODO
-	return 1;
+uint16_t calculate_penalty(struct qr_bitmap bitmap, uint16_t *run_pen_, uint16_t *box_pen_, uint16_t *find_pen_, uint16_t *dark_pen_) {
+	// TODO: this function is incorrect for some cases, fix it
+
+	struct qr_pos pos;
+
+	// scan rows and columns
+	uint16_t run_pen = 0;
+	for (uint8_t swap = 0; swap < 2; ++swap)
+		for (pos.y = 0; pos.y < bitmap.size; ++pos.y) {
+			bool last;
+			uint8_t run = 0;
+			for (pos.x = 0; pos.x < bitmap.size; ++pos.x) {
+				// swap x and y to scan columns too
+				struct qr_pos pos_swap = swap ? QR_POS(pos.y, pos.x) : pos;
+				bool current = qr_bitmap_read(bitmap, pos_swap);
+
+				// check for runs
+				if (pos.x == 0) last = current;
+				if (current != last || pos.x == bitmap.size - 1) {
+					if (current == last) ++run;
+					if (run >= 5) {
+						run_pen += run - 2;
+					}
+					last = current;
+					run = 0;
+				}
+				++run;
+			}
+		}
+
+	// scan for 2x2 boxes
+	uint16_t box_pen = 0;
+	for (pos.y = 0; pos.y < bitmap.size - 1; ++pos.y)
+		for (pos.x = 0; pos.x < bitmap.size - 1; ++pos.x) {
+			bool a = qr_bitmap_read(bitmap, pos);
+			bool b = qr_bitmap_read(bitmap, QR_POS(pos.x + 1, pos.y));
+			bool c = qr_bitmap_read(bitmap, QR_POS(pos.x, pos.y + 1));
+			bool d = qr_bitmap_read(bitmap, QR_POS(pos.x + 1, pos.y + 1));
+			if (a == b && b == c && c == d) {
+				box_pen += 3;
+			}
+		}
+
+	// scan for finder-like patterns
+	uint16_t find_pen = 0;
+	for (uint8_t swap = 0; swap < 2; ++swap)
+		for (pos.y = 0; pos.y < bitmap.size; ++pos.y) {
+			uint16_t run = 0;
+			for (pos.x = 0; pos.x < bitmap.size; ++pos.x) {
+				struct qr_pos pos_swap = swap ? QR_POS(pos.y, pos.x) : pos;
+				// https://github.com/soldair/node-qrcode/blob/9cc0e3b/lib/core/mask-pattern.js#L129
+				// add to current run (0x7ff = 11 bits)
+				run = ((run << 1) & 0x7ff) | qr_bitmap_read(bitmap, pos_swap);
+				if (pos.x < 10) continue;
+
+				// check for patterns (0=white, 1=black)
+				// 10111010000 and 00001011101 respectively
+				if (run == 0x5d0 || run == 0x05d) {
+					find_pen += 40;
+				}
+			}
+		}
+
+	// penalty for dark/light balance
+	uint16_t total_dark = 0;
+	for (pos.y = 0; pos.y < bitmap.size; ++pos.y)
+		for (pos.x = 0; pos.x < bitmap.size; ++pos.x)
+			if (qr_bitmap_read(bitmap, pos)) ++total_dark;
+
+	// percentage of dark modules to total modjules
+	double perc = (double) total_dark / (double) (bitmap.size * bitmap.size) * 100.0;
+
+	perc -= 50.0;
+	int16_t diff = perc / 5.0;  // divide by 5 and truncate (round to closest integer towards zero)
+	if (diff < 0) diff = -diff; // take absolute value
+
+	uint16_t dark_pen = 10 * (uint16_t) diff;
+
+	// set pointers
+	if (run_pen_) *run_pen_ = run_pen;
+	if (box_pen_) *box_pen_ = box_pen;
+	if (find_pen_) *find_pen_ = find_pen;
+	if (dark_pen_) *dark_pen_ = dark_pen;
+
+	return run_pen + box_pen + find_pen + dark_pen;
 }
 
 // this runs faster than gf256 since we skip multiplication
@@ -385,7 +467,7 @@ bool qr_render(struct qr *qr, const char **error, uint8_t mask) {
 	bool format_bits[15];
 
 	if (mask == QR_MASK_AUTO) {
-		uint16_t penalty = 0;
+		uint16_t lowest_penalty = 0;
 
 		// apply best mask
 		for (uint8_t m = 0; m < 8; m++) {
@@ -394,28 +476,21 @@ bool qr_render(struct qr *qr, const char **error, uint8_t mask) {
 			get_format_information(qr->ecl, mask, format_bits);
 			write_format_information(render, format_bits);
 
-			uint16_t new_penalty = calculate_penalty(render);
-			if (m == 0 || new_penalty < penalty) {
-				penalty = new_penalty;
+			uint16_t new_penalty = calculate_penalty(*render.bitmap, NULL, NULL, NULL, NULL);
+
+			if (m == 0 || new_penalty < lowest_penalty) {
+				lowest_penalty = new_penalty;
 				mask = m;
 			}
 			apply_mask(render, m); // XOR twice will undo the mask
 		}
 	} else {
 		mask &= 7; // trim to 0-7
-		printf("Forcing mask %" PRIu8 "\n", mask);
 	}
 	apply_mask(render, mask);
 
 	get_format_information(qr->ecl, mask, format_bits);
 	write_format_information(render, format_bits);
-
-	// write format information
-
-	// write version information
-
-	// debug: visualise written modules
-	// memcpy(qr->output.data, qr_drawn.data, qr->output.data_size);
 
 	// free drawn mask
 	FREE(qr_drawn.data);
