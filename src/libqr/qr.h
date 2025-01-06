@@ -5,6 +5,10 @@
 #include <stdbool.h>
 #include <limits.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define QR_VERSION_MIN (1)
 #define QR_VERSION_MAX (40)
 #define QR_VERSION_AUTO (0)
@@ -101,4 +105,8 @@ bool qr_bitmap_read(struct qr_bitmap output, struct qr_pos pos);
 
 // frees the QR code
 void qr_close(struct qr *qr);
+
+#ifdef __cplusplus
+}
+#endif
 #endif // LIBQR_QR_H
