@@ -222,6 +222,8 @@ static void info_poly_div(const bool *str, size_t str_len, const bool *generator
 #define LEN(x) (sizeof(x) / sizeof(x[0]))
 
 void get_format_information(enum qr_ecl ecl, uint8_t mask, bool *out) {
+	ecl = QR_ECL(ecl);
+
 	// out = 15 bytes
 	bool data[5] = {
 	        // L = 01, M = 00, Q = 11, H = 10

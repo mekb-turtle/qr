@@ -23,7 +23,7 @@
 // cast to size_t to avoid format warnings
 #define ASSERT(actual, op, expected, format, failure)                              \
 	{                                                                              \
-		if (actual op expected) {                                                  \
+		if ((actual) op(expected)) {                                               \
 			printf("%sAssertion passed: ", LOC);                                   \
 			printf(format " %s " format " ... ", NUM(actual), #op, NUM(expected)); \
 			printf("%s %s %s\n", #actual, #op, #expected);                         \

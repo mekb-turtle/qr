@@ -154,9 +154,16 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 	if (qr->version > QR_VERSION_MAX) ERROR("Invalid version");
 
 	// find the smallest version that can fit the data
-	while (qr->version < QR_VERSION_MIN || character_capacity[4 * (qr->version - 1) + qr->ecl][qr->mode - 1] < qr->char_count) {
+	while (qr->version < QR_VERSION_MIN || QR_CHARACTER_CAPACITY(qr->version, qr->ecl, qr->mode) < qr->char_count) {
 		++qr->version;
 		if (qr->version > QR_VERSION_MAX) ERROR("Too much data");
+	}
+
+	// boost the error correction level if wanted
+	if (!(qr->ecl & QR_ECL_NO_BOOST)) {
+		while (QR_ECL(qr->ecl) < QR_ECL_HIGH && QR_CHARACTER_CAPACITY(qr->version, qr->ecl + 1, qr->mode) >= qr->char_count) {
+			++qr->ecl;
+		}
 	}
 
 	// number of bits for character count indicator
@@ -276,7 +283,7 @@ bool qr_prepare_data(struct qr *qr, const char **error) {
 #define ADD_BITS(value, bits) \
 	if (!bit_buffer_add_bits(&qr->data, value, bits)) ERROR("Failed to add bits: " LINE_STR);
 
-	const struct ec_row ec = error_correction[QR_ECL_NUM * (qr->version - 1) + qr->ecl];
+	const struct ec_row ec = error_correction[QR_ECL_NUM * (qr->version - 1) + QR_ECL(qr->ecl)];
 
 	// cw = codeword
 	uint16_t cw_total = ec.group1_cw * ec.group1_blocks + ec.group2_cw * ec.group2_blocks; // https://www.thonky.com/qr-code-tutorial/error-correction-table

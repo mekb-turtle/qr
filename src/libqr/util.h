@@ -15,7 +15,9 @@
 #define ERR_ALLOC "Failed to allocate memory"
 
 // validity checks
-#define QR_ECL_VALID(ecl) ((ecl) == QR_ECL_LOW || (ecl) == QR_ECL_MEDIUM || (ecl) == QR_ECL_QUARTILE || (ecl) == QR_ECL_HIGH)
+#define QR_ECL(ecl) ((ecl) & QR_ECL_ALL_MASK)
+#define QR_CHARACTER_CAPACITY(version, ecl, mode) (character_capacity[4 * (version - 1) + QR_ECL(ecl)][mode - 1])
+#define QR_ECL_VALID(ecl) (QR_ECL(ecl) == QR_ECL_LOW || QR_ECL(ecl) == QR_ECL_MEDIUM || QR_ECL(ecl) == QR_ECL_QUARTILE || QR_ECL(ecl) == QR_ECL_HIGH)
 #define QR_MODE_VALID(mode) ((mode) == QR_MODE_NUMERIC || (mode) == QR_MODE_ALPHANUMERIC || (mode) == QR_MODE_BYTE || (mode) == QR_MODE_KANJI)
 #define QR_VERSION_VALID(version) ((version) >= QR_VERSION_MIN && (version) <= QR_VERSION_MAX)
 #define QR_ALLOC_VALID(alloc) ((alloc).malloc && (alloc).realloc && (alloc).free)

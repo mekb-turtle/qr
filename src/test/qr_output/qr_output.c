@@ -112,7 +112,7 @@ int main() {
 		}
 
 		qr_close(&qr);
-		bool result = qr_encode_utf8(&qr, alloc, "test string...", QR_MODE_AUTO, version, QR_ECL_LOW, &error);
+		bool result = qr_encode_utf8(&qr, alloc, "test string...", QR_MODE_AUTO, version, QR_ECL_LOW | QR_ECL_NO_BOOST, &error);
 		if (!result) {
 			ret = 1;
 			alloc.free(test_bitmap.data);
@@ -120,7 +120,7 @@ int main() {
 			if (error) printf("error: %s\n", error);
 			goto next;
 		}
-		ASSERT(qr.ecl, ==, QR_ECL_LOW, FMT_INT, result = false);
+		ASSERT(QR_ECL(qr.ecl), ==, QR_ECL_LOW, FMT_INT, result = false);
 		ASSERT(qr.mode, ==, QR_MODE_BYTE, FMT_INT, result = false);
 		ASSERT(qr.version, ==, version, FMT_INT, result = false);
 		ASSERT(qr.char_count, ==, 14, FMT_INT, result = false);

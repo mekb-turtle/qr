@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../libqr/qr.h"
+#include "../libqr/util.h"
 #include "test.h"
 
 int main() {
@@ -12,13 +13,13 @@ int main() {
 	const char *error = NULL;
 	struct qr qr;
 	memset(&qr, 0, sizeof(qr));
-	bool result = qr_encode_utf8(&qr, alloc, "HELLO WORLD", QR_MODE_AUTO, QR_VERSION_AUTO, QR_ECL_LOW, &error);
+	bool result = qr_encode_utf8(&qr, alloc, "HELLO WORLD", QR_MODE_AUTO, QR_VERSION_AUTO, QR_ECL_LOW | QR_ECL_NO_BOOST, &error);
 	if (!result) {
 		FAIL("qr_encode_utf8");
 		if (error) printf("error: %s\n", error);
 	} else {
 		bool match = true;
-		ASSERT(qr.ecl, ==, QR_ECL_LOW, FMT_INT, match = false);
+		ASSERT(QR_ECL(qr.ecl), ==, QR_ECL_LOW, FMT_INT, match = false);
 		ASSERT(qr.mode, ==, QR_MODE_ALPHANUMERIC, FMT_INT, match = false);
 		ASSERT(qr.version, ==, 1, FMT_INT, match = false);
 		ASSERT(qr.char_count, ==, 11, FMT_INT, match = false);
@@ -53,12 +54,12 @@ int main() {
 	qr_close(&qr);
 
 	// test with a larger string
-	result = qr_encode_utf8(&qr, alloc, "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz", QR_MODE_AUTO, 5, QR_ECL_MEDIUM, &error);
+	result = qr_encode_utf8(&qr, alloc, "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz", QR_MODE_AUTO, 5, QR_ECL_MEDIUM | QR_ECL_NO_BOOST, &error);
 	if (!result) {
 		FAIL("qr_encode_utf8");
 		if (error) printf("error: %s\n", error);
 	} else {
-		ASSERT(qr.ecl, ==, QR_ECL_MEDIUM, FMT_INT, ret = 1);
+		ASSERT(QR_ECL(qr.ecl), ==, QR_ECL_MEDIUM, FMT_INT, ret = 1);
 		ASSERT(qr.mode, ==, QR_MODE_BYTE, FMT_INT, ret = 1);
 		ASSERT(qr.version, ==, 10, FMT_INT, ret = 1);
 		ASSERT(qr.char_count, ==, 182, FMT_INT, ret = 1);

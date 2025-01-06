@@ -31,6 +31,7 @@ int main(int argc, char *argv[]) {
 	module_t quiet_zone;
 	module_t module_size;
 	enum qr_ecl ecl;
+	bool boost_ecl = true;
 	uint8_t version;
 	enum qr_mode encoding;
 	bool force_terminal = false;
@@ -51,21 +52,22 @@ int main(int argc, char *argv[]) {
 	int opt;
 
 	// argument handling
-	while ((opt = getopt_long(argc, argv, ":hVf:iB:F:q:m:o:e:v:E:SM:", (struct option[]){
-	                                                                           {"help",       no_argument,       0, 'h'},
-	                                                                           {"format",     required_argument, 0, 'f'},
-	                                                                           {"invert",     no_argument,       0, 'i'},
-	                                                                           {"background", required_argument, 0, 'B'},
-	                                                                           {"foreground", required_argument, 0, 'F'},
-	                                                                           {"quiet",      required_argument, 0, 'q'},
-	                                                                           {"module",     required_argument, 0, 'm'},
-	                                                                           {"output",     required_argument, 0, 'o'},
-	                                                                           {"ecl",        required_argument, 0, 'e'},
-	                                                                           {"version",    required_argument, 0, 'v'},
-	                                                                           {"encoding",   required_argument, 0, 'E'},
-	                                                                           {"terminal",   no_argument,       0, 'S'},
-	                                                                           {"mask",       required_argument, 0, 'M'},
-	                                                                           {0,            0,                 0, 0  }
+	while ((opt = getopt_long(argc, argv, ":hVf:iB:F:q:m:o:e:Nv:E:SM:", (struct option[]){
+	                                                                            {"help",         no_argument,       0, 'h'},
+	                                                                            {"format",       required_argument, 0, 'f'},
+	                                                                            {"invert",       no_argument,       0, 'i'},
+	                                                                            {"background",   required_argument, 0, 'B'},
+	                                                                            {"foreground",   required_argument, 0, 'F'},
+	                                                                            {"quiet",        required_argument, 0, 'q'},
+	                                                                            {"module",       required_argument, 0, 'm'},
+	                                                                            {"output",       required_argument, 0, 'o'},
+	                                                                            {"ecl",          required_argument, 0, 'e'},
+	                                                                            {"no-boost-ecl", no_argument,       0, 'N'},
+	                                                                            {"version",      required_argument, 0, 'v'},
+	                                                                            {"encoding",     required_argument, 0, 'E'},
+	                                                                            {"terminal",     no_argument,       0, 'S'},
+	                                                                            {"mask",         required_argument, 0, 'M'},
+	                                                                            {0,              0,                 0, 0  }
     },
 	                          NULL)) != -1) {
 		switch (opt) {
@@ -93,6 +95,7 @@ int main(int argc, char *argv[]) {
 \n\
 -e --ecl: Error correction level (default: low)\n\
   Values: low/medium/quartile/high\n\
+-N --no-boost-ecl: Disable automatic error correction level boost\n\
 -v --version <1-40|auto>: Minimum QR code version\n\
 -E --encoding <encoding>: Encoding to use (default: auto)\n\
   Values: auto/numeric/alphanumeric/byte/kanji\n\
@@ -140,6 +143,9 @@ int main(int argc, char *argv[]) {
 					case 'e':
 						if (!optarg) invalid = true;
 						opt_ecl = optarg;
+						break;
+					case 'N':
+						boost_ecl = false;
 						break;
 					case 'v':
 						if (!optarg) invalid = true;
@@ -219,6 +225,10 @@ int main(int argc, char *argv[]) {
 		}
 	} else {
 		ecl = QR_ECL_LOW;
+	}
+
+	if (!boost_ecl) {
+		ecl |= QR_ECL_NO_BOOST;
 	}
 
 	version = QR_VERSION_AUTO;

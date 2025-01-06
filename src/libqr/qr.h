@@ -51,7 +51,10 @@ struct qr {
 		QR_ECL_LOW = 0,
 		QR_ECL_MEDIUM = 1,
 		QR_ECL_QUARTILE = 2,
-		QR_ECL_HIGH = 3
+		QR_ECL_HIGH = 3,
+		// flags:
+		QR_ECL_ALL_MASK = 0x03,
+		QR_ECL_NO_BOOST = 0x04
 	} ecl;
 
 	// encoding mode

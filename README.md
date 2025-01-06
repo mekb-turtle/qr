@@ -17,6 +17,7 @@ This is a simple QR code generator written in C. It reads a string from argument
 - Mode detection (numeric, alphanumeric, binary, kanji)
 - Auto version selection
 - Custom fg/bg color
+- Boost EC level automatically to fit version
 - Supported output formats:
   - Image: PNG, BMP, Targa, HDR, JPEG, [farbfeld](https://tools.suckless.org/farbfeld/)
   - Text (using Unicode block characters)
@@ -26,7 +27,6 @@ This is a simple QR code generator written in C. It reads a string from argument
 - Micro QR codes (μQR)
 - More encoding modes
 - Multi-encoded QR codes
-- Boost EC level automatically
 
 ## Dependencies
 - `iconv` (glibc)
