@@ -6,8 +6,6 @@
 #include <inttypes.h>
 #include "bit_buffer.h"
 
-#include <stdio.h>
-
 struct qr_render {
 	struct qr_bitmap *bitmap, *mask;
 };

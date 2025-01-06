@@ -5,6 +5,7 @@
 #include "stbi_write.h"
 #include "endian.h"
 #include <inttypes.h>
+#include "../libqr/qr.h"
 
 #define ERR_ALLOC "Failed to allocate memory"
 
@@ -40,15 +41,20 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 	}
 
 	// check for overflow
+	if ((qr_t) opt.quiet_zone > QR_MAX / 2) ERROR("Quiet zone too large");
 	bitmap.size = 2 * (qr_t) opt.quiet_zone;
 	if ((qr_t) qr->output.size > QR_MAX - bitmap.size) ERROR("Bitmap too large");
 	bitmap.size += (qr_t) qr->output.size;
 	if ((qr_t) opt.module_size > QR_MAX / bitmap.size) ERROR("Module size too large");
 	bitmap.size *= (qr_t) opt.module_size;
-	if ((qr_t) bitmap.size > QR_MAX / bitmap.size * 8) ERROR("Bitmap too large");
+	if ((qr_t) bitmap.size > QR_MAX / bitmap.size) ERROR("Bitmap too large");
 
 	// construct larger output before encoding
 	bitmap.data_size = QR_DATA_SIZE(bitmap.size);
+
+	// prevent stupidly large bitmaps (>1 MiB) from being created
+	if (bitmap.data_size > 0x100000) ERROR("Bitmap too large, try reducing the module size");
+
 	bitmap.data = qr->alloc.malloc(bitmap.data_size);
 	if (!bitmap.data) ERROR(ERR_ALLOC);
 
@@ -75,84 +81,104 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 			struct qr_pos rel;
 			for (rel.y = 0; rel.y < opt.module_size; rel.y++)
 				for (rel.x = 0; rel.x < opt.module_size; rel.x++) {
+					// TODO: optimise this by using stb_image_resize2 for images and math to save memory and processing time
 					qr_bitmap_write(&bitmap, QR_POS(off.x + rel.x, off.y + rel.y), !opt.invert);
 				}
 		}
 
-	if (opt.format & OUTPUT_IS_IMAGE) {
+	if (OUTPUT_IS_BINARY(opt.format)) {
 #define WRITE(data, len) fwrite(data, 1, len, fp)
 		// output image
-		if (opt.format == OUTPUT_FF) {
-			// stbi doesn't support this format
-			// write it ourselves
-			// see https://tools.suckless.org/farbfeld/
-			WRITE("farbfeld", 8); // magic
-			const uint32_t size = TO_BE32((uint32_t) bitmap.size);
-			WRITE(&size, sizeof(size)); // width
-			WRITE(&size, sizeof(size)); // height
-			for (pos.y = 0; pos.y < bitmap.size; pos.y++)
-				for (pos.x = 0; pos.x < bitmap.size; pos.x++) {
-					struct color c = qr_bitmap_read(bitmap, pos) ? opt.fg : opt.bg;
-					// farbfeld uses BE 16-bit values for each channel
-					WRITE(((uint8_t[]){c.r, c.r, c.g, c.g, c.b, c.b, c.a, c.a}), 8);
-				}
-		} else {
-			// create image for use with stbi
-			bool is_float = OUTPUT_HAS_FLOAT(opt.format);
-
-			uint8_t bytes_per_channel = is_float ? sizeof(float) : 1;
-			const uint8_t channels = 4;
-			uint8_t bytes_per_pixel = bytes_per_channel * channels;
-
-			if (bitmap.size > SIZE_MAX / bytes_per_pixel) ERROR("Bitmap too large");
-			size_t image_stride = (size_t) bitmap.size * bytes_per_pixel;
-			if (image_stride > SIZE_MAX / bitmap.size) ERROR("Bitmap too large");
-			size_t image_size = bitmap.size * image_stride;
-			image = qr->alloc.malloc(image_size);
-			float *imagef = (float *) image;
-			if (!image) ERROR(ERR_ALLOC);
-
-			// copy image data to new buffer
-			size_t i;
-			for (i = 0, pos.y = 0; pos.y < bitmap.size; pos.y++)
-				for (pos.x = 0; pos.x < bitmap.size; pos.x++, i += channels) {
-					struct color c = qr_bitmap_read(bitmap, pos) ? opt.fg : opt.bg;
-					if (is_float) {
-						imagef[i + 0] = c.r / 255.0f;
-						imagef[i + 1] = c.g / 255.0f;
-						imagef[i + 2] = c.b / 255.0f;
-						imagef[i + 3] = c.a / 255.0f;
-					} else {
-						image[i + 0] = c.r;
-						image[i + 1] = c.g;
-						image[i + 2] = c.b;
-						image[i + 3] = c.a;
-					}
-				}
-			FREE(bitmap.data);
-
-			// set alloc functions for stbi
-			output_alloc = qr->alloc;
-			switch (opt.format) {
-				case OUTPUT_PNG:
-					stbi_write_png_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image, image_stride);
-					break;
-				case OUTPUT_BMP:
-					stbi_write_bmp_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image);
-					break;
-				case OUTPUT_TGA:
-					stbi_write_tga_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image);
-					break;
-				case OUTPUT_HDR:
-					stbi_write_hdr_to_func(write_data, fp, bitmap.size, bitmap.size, channels, (float *) image);
-					break;
-				case OUTPUT_JPG:
-					stbi_write_jpg_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image, 100);
-					break;
-				default:
-					ERROR("Invalid image format");
+		switch (opt.format) {
+			case OUTPUT_RAW_BIT:
+				WRITE(bitmap.data, bitmap.data_size);
+				break;
+			case OUTPUT_RAW_BYTE: {
+				struct qr_pos pos;
+				for (pos.y = 0; pos.y < bitmap.size; pos.y++)
+					for (pos.x = 0; pos.x < bitmap.size; pos.x++)
+						fputc(qr_bitmap_read(bitmap, pos) ? 0xff : 0x00, fp);
+				break;
 			}
-			FREE(image);
+
+			case OUTPUT_FF: {
+				// stbi doesn't support this format
+				// write it ourselves
+				// see https://tools.suckless.org/farbfeld/
+				WRITE("farbfeld", 8); // magic
+				const uint32_t size = TO_BE32((uint32_t) bitmap.size);
+				WRITE(&size, sizeof(size)); // width
+				WRITE(&size, sizeof(size)); // height
+				uint8_t fg[8] = {opt.fg.r, opt.fg.r, opt.fg.g, opt.fg.g, opt.fg.b, opt.fg.b, opt.fg.a, opt.fg.a};
+				uint8_t bg[8] = {opt.bg.r, opt.bg.r, opt.bg.g, opt.bg.g, opt.bg.b, opt.bg.b, opt.bg.a, opt.bg.a};
+				for (pos.y = 0; pos.y < bitmap.size; pos.y++)
+					for (pos.x = 0; pos.x < bitmap.size; pos.x++) {
+						// farbfeld uses BE 16-bit values for each channel
+						WRITE(qr_bitmap_read(bitmap, pos) ? fg : bg, 8);
+					}
+				break;
+			}
+
+			default: {
+				// create image for use with stbi
+				bool is_float = OUTPUT_HAS_FLOAT(opt.format);
+
+				uint8_t bytes_per_channel = is_float ? sizeof(float) : 1;
+				const uint8_t channels = 4;
+				uint8_t bytes_per_pixel = bytes_per_channel * channels;
+
+				if (bitmap.size > SIZE_MAX / bytes_per_pixel) ERROR("Bitmap too large");
+				size_t image_stride = (size_t) bitmap.size * bytes_per_pixel;
+				if (image_stride > SIZE_MAX / bitmap.size) ERROR("Bitmap too large");
+				size_t image_size = bitmap.size * image_stride;
+				image = qr->alloc.malloc(image_size);
+				if (!image) ERROR(ERR_ALLOC);
+				float *imagef = (float *) image;
+				memset(image, 0, image_size);
+
+				// copy image data to new buffer
+				size_t i;
+				for (i = 0, pos.y = 0; pos.y < bitmap.size; pos.y++)
+					for (pos.x = 0; pos.x < bitmap.size; pos.x++, i += channels) {
+						struct color c = qr_bitmap_read(bitmap, pos) ? opt.fg : opt.bg;
+						if (is_float) {
+							imagef[i + 0] = c.r / 255.0f;
+							imagef[i + 1] = c.g / 255.0f;
+							imagef[i + 2] = c.b / 255.0f;
+							imagef[i + 3] = c.a / 255.0f;
+						} else {
+							image[i + 0] = c.r;
+							image[i + 1] = c.g;
+							image[i + 2] = c.b;
+							image[i + 3] = c.a;
+						}
+					}
+				FREE(bitmap.data);
+
+				// set alloc functions for stbi
+				output_alloc = qr->alloc;
+				switch (opt.format) {
+					case OUTPUT_PNG:
+						stbi_write_png_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image, image_stride);
+						break;
+					case OUTPUT_BMP:
+						stbi_write_bmp_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image);
+						break;
+					case OUTPUT_TGA:
+						stbi_write_tga_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image);
+						break;
+					case OUTPUT_HDR:
+						stbi_write_hdr_to_func(write_data, fp, bitmap.size, bitmap.size, channels, (float *) image);
+						break;
+					case OUTPUT_JPG:
+						stbi_write_jpg_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image, 100);
+						break;
+					default:
+						ERROR("Invalid image format");
+				}
+				FREE(image);
+				break;
+			}
 		}
 	} else {
 #define PRINT(...) fprintf(fp, __VA_ARGS__)
@@ -194,6 +220,10 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 					case OUTPUT_TEXT:
 						PRINT(bit ? "##" : "  ");
 						break;
+					case OUTPUT_CSV:
+						if (pos.x > 0) PRINT(",");
+						PRINT("%c", bit ? '1' : '0');
+						break;
 					case OUTPUT_HTML:
 						PRINT("<td class=\"%c\"></td>", bit ? 'a' : 'b');
 						break;
@@ -206,7 +236,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 						PRINT(bit ? (bit2 ? "\u2588" : "\u2580") : (bit2 ? "\u2584" : " "));
 						break;
 					default:
-						ERROR("Invalid image format");
+						ERROR("Invalid text format");
 				}
 			}
 

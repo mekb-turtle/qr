@@ -15,6 +15,11 @@
 
 #undef PARSE_FUNC
 
+extern const struct format_string {
+	const char *name;
+	enum output_format format;
+} output_formats[], comments[];
+
 bool parse_output_format(const char *str, enum output_format *format);
 
 enum parse_color_reason {

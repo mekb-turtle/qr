@@ -25,18 +25,17 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	bool invert = false;
+	bool invert = false, boost_ecl = true, force_terminal = false;
 	enum output_format format;
 	struct color fg, bg;
-	module_t quiet_zone;
-	module_t module_size;
+	qr_t quiet_zone, module_size;
 	enum qr_ecl ecl;
-	bool boost_ecl = true;
 	uint8_t version;
 	enum qr_mode encoding;
-	bool force_terminal = false;
 	uint8_t mask;
 
+	// store all options as strings for later use
+	// this is to avoid having to parse them multiple times if they are specified multiple times
 	char *opt_format = NULL,
 	     *opt_background = NULL,
 	     *opt_foreground = NULL,
@@ -52,22 +51,23 @@ int main(int argc, char *argv[]) {
 	int opt;
 
 	// argument handling
-	while ((opt = getopt_long(argc, argv, ":hVf:iB:F:q:m:o:e:Nv:E:SM:", (struct option[]){
-	                                                                            {"help",         no_argument,       0, 'h'},
-	                                                                            {"format",       required_argument, 0, 'f'},
-	                                                                            {"invert",       no_argument,       0, 'i'},
-	                                                                            {"background",   required_argument, 0, 'B'},
-	                                                                            {"foreground",   required_argument, 0, 'F'},
-	                                                                            {"quiet",        required_argument, 0, 'q'},
-	                                                                            {"module",       required_argument, 0, 'm'},
-	                                                                            {"output",       required_argument, 0, 'o'},
-	                                                                            {"ecl",          required_argument, 0, 'e'},
-	                                                                            {"no-boost-ecl", no_argument,       0, 'N'},
-	                                                                            {"version",      required_argument, 0, 'v'},
-	                                                                            {"encoding",     required_argument, 0, 'E'},
-	                                                                            {"terminal",     no_argument,       0, 'S'},
-	                                                                            {"mask",         required_argument, 0, 'M'},
-	                                                                            {0,              0,                 0, 0  }
+	while ((opt = getopt_long(argc, argv, ":hVf:liB:F:q:m:o:e:Nv:E:SM:", (struct option[]){
+	                                                                             {"help",         no_argument,       0, 'h'},
+	                                                                             {"format",       required_argument, 0, 'f'},
+	                                                                             {"formats",      no_argument,       0, 'l'},
+	                                                                             {"invert",       no_argument,       0, 'i'},
+	                                                                             {"background",   required_argument, 0, 'B'},
+	                                                                             {"foreground",   required_argument, 0, 'F'},
+	                                                                             {"quiet",        required_argument, 0, 'q'},
+	                                                                             {"module",       required_argument, 0, 'm'},
+	                                                                             {"output",       required_argument, 0, 'o'},
+	                                                                             {"ecl",          required_argument, 0, 'e'},
+	                                                                             {"no-boost-ecl", no_argument,       0, 'N'},
+	                                                                             {"version",      required_argument, 0, 'v'},
+	                                                                             {"encoding",     required_argument, 0, 'E'},
+	                                                                             {"terminal",     no_argument,       0, 'S'},
+	                                                                             {"mask",         required_argument, 0, 'M'},
+	                                                                             {0,              0,                 0, 0  }
     },
 	                          NULL)) != -1) {
 		switch (opt) {
@@ -76,16 +76,13 @@ int main(int argc, char *argv[]) {
 				printf("\
 -h --help: Shows help text\n\
 -V: Shows the version of the program\n\
+-l --formats: Shows a list of supported formats\n\
 \n\
 -f --format <format>: Specify output format to use (default: text)\n\
-  Values:\n\
-    Image: png, bmp, tga, hdr, jpg, ff\n\
-    Text: text, html, unicode, unicode2x\n\
 -i --invert: Flip the colors of the output\n\
 \n\
--B --background <color>\n\
--F --foreground <color>\n\
-  Values: r,g,b or r,g,b,a\n\
+-B --background <r,g,b|r,g,b,a>\n\
+-F --foreground <r,g,b|r,g,b,a>\n\
 \n\
 -q --quiet <modules>: Margin around code in modules (default: %i)\n\
 -m --module <pixels>: Size of each module in pixels/characters (default: %i for image, %i for text)\n\
@@ -100,7 +97,6 @@ int main(int argc, char *argv[]) {
 -E --encoding <encoding>: Encoding to use (default: auto)\n\
   Values: auto/numeric/alphanumeric/byte/kanji\n\
 -M --mask <0-7|auto>: Force mask to use\n\
-\n\
 ",
 				       QUIET_ZONE_DEFAULT, MODULE_SIZE_IMAGE_DEFAULT, MODULE_SIZE_TEXT_DEFAULT);
 				return 0;
@@ -109,6 +105,34 @@ int main(int argc, char *argv[]) {
 #ifdef PROJECT_URL
 				printf("See more at %s\n", PROJECT_URL);
 #endif
+				return 0;
+			case 'l':
+				printf("Supported formats:\n");
+				const struct format_string *prev = NULL, *fmt;
+				printf("Text:\n");
+				for (fmt = output_formats;; ++fmt) {
+					if (!fmt->name || !prev || prev->format != fmt->format) {
+						if (prev) {
+							for (const struct format_string *cmt = comments; cmt->name; ++cmt) {
+								if (cmt->format != prev->format) continue;
+								// print comment for this filetype
+								printf("\n     %s", cmt->name);
+								break;
+							}
+							printf("\n");
+							if (!fmt->name) break; // end of list
+							// print header for next format type if different
+							if (OUTPUT_IS_BINARY(fmt->format) && !OUTPUT_IS_BINARY(prev->format)) printf("Binary:\n");
+							if (OUTPUT_IS_IMAGE(fmt->format) && !OUTPUT_IS_IMAGE(prev->format)) printf("Image:\n");
+						}
+						// begin new line
+						printf(" - %s", fmt->name);
+						prev = fmt;
+					} else {
+						// continue line with same format
+						printf(", %s", fmt->name);
+					}
+				}
 				return 0;
 			default:
 				if (invalid) break;
@@ -202,35 +226,31 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (opt_module) {
-		if (!parse_u8(opt_module, &module_size, NULL) || module_size < 1) {
+		if (!parse_u32(opt_module, &module_size, NULL) || module_size < 1) {
 			eprintf("Invalid module size, should be at least 1\n");
 			invalid = true;
 		}
 	} else {
-		module_size = format & OUTPUT_IS_IMAGE ? MODULE_SIZE_IMAGE_DEFAULT : MODULE_SIZE_TEXT_DEFAULT;
+		module_size = OUTPUT_IS_IMAGE(format) ? MODULE_SIZE_IMAGE_DEFAULT : MODULE_SIZE_TEXT_DEFAULT;
 	}
 
 	if (opt_quiet_zone) {
-		if (!parse_u8(opt_quiet_zone, &quiet_zone, NULL)) {
+		if (!parse_u32(opt_quiet_zone, &quiet_zone, NULL)) {
 			eprintf("Invalid quiet zone size\n");
 			invalid = true;
 		}
-	} else {
+	} else
 		quiet_zone = QUIET_ZONE_DEFAULT;
-	}
 
 	if (opt_ecl) {
 		if (!parse_ecl(opt_ecl, &ecl)) {
 			eprintf("Invalid error correction level\n");
 			invalid = true;
 		}
-	} else {
-		ecl = QR_ECL_LOW;
-	}
+	} else
+		ecl = QR_ECL_MEDIUM;
 
-	if (!boost_ecl) {
-		ecl |= QR_ECL_NO_BOOST;
-	}
+	if (!boost_ecl) ecl |= QR_ECL_NO_BOOST;
 
 	version = QR_VERSION_AUTO;
 	if (opt_version && !MATCH(opt_version, "auto")) {
@@ -294,8 +314,9 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (format & OUTPUT_IS_IMAGE && !force_terminal && isatty(fileno(fp))) {
-		eprintf("Refusing to write image to terminal\n");
+	if (OUTPUT_IS_BINARY(format) && !force_terminal && isatty(fileno(fp))) {
+		eprintf("Refusing to write binary file to terminal\n");
+		eprintf("Use --terminal to override\n");
 	close_exit:
 		if (fp != stdout) fclose(fp);
 		return ret;
@@ -346,10 +367,11 @@ void print_color_reason(enum parse_color_reason reason) {
 			eprintf("Invalid color syntax\n");
 			break;
 		case COLOR_NO_COLOR:
-			eprintf("Color not supported for this format\n");
+			eprintf("Color is not supported for this format\n");
+			eprintf("Images and HTML formats support colors\n");
 			break;
 		case COLOR_NO_ALPHA:
-			eprintf("Alpha not supported for this format\n");
+			eprintf("Alpha channel is not supported for this format\n");
 			break;
 		case COLOR_OK:
 			break;

@@ -24,7 +24,8 @@ This is a simple QR code generator written in C. It reads a string from argument
   - HTML
 
 ## Future plans
-- Micro QR codes (μQR)
+- Optimised output for image and text formats
+- Micro QR code (μQR)
 - More encoding modes
 - Multi-encoded QR codes
 

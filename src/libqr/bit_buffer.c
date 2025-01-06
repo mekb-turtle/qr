@@ -2,6 +2,7 @@
 // #define DEBUG
 #ifdef DEBUG
 #include <stdio.h>
+#include <inttypes.h>
 #define eprintf(...) fprintf(stderr, __VA_ARGS__)
 #endif
 

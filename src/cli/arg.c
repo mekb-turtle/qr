@@ -60,32 +60,62 @@ static bool parse_internal(const char *str, ull *out, char **endptr, bool is_sig
 
 #undef PARSE_FUNC
 
+// output formats for parsing
+const struct format_string output_formats[] = {
+        {"text",      OUTPUT_TEXT     },
+        {"txt",       OUTPUT_TEXT     },
+        {"t",         OUTPUT_TEXT     },
+        {"html",      OUTPUT_HTML     },
+        {"h",         OUTPUT_HTML     },
+        {"htm",       OUTPUT_HTML     },
+        {"csv",       OUTPUT_CSV      },
+        {"c",         OUTPUT_CSV      },
+        {"unicode",   OUTPUT_UNICODE  },
+        {"u",         OUTPUT_UNICODE  },
+        {"unicode2x", OUTPUT_UNICODE2X},
+        {"unicode2",  OUTPUT_UNICODE2X},
+        {"u2x",       OUTPUT_UNICODE2X},
+        {"u2",        OUTPUT_UNICODE2X},
+
+        {"raw_byte",  OUTPUT_RAW_BYTE },
+        {"raw",       OUTPUT_RAW_BYTE },
+        {"r",         OUTPUT_RAW_BYTE },
+        {"raw_bit",   OUTPUT_RAW_BIT  },
+        {"rawbit",    OUTPUT_RAW_BIT  },
+        {"rb",        OUTPUT_RAW_BIT  },
+
+        {"png",       OUTPUT_PNG      },
+        {"bmp",       OUTPUT_BMP      },
+        {"tga",       OUTPUT_TGA      },
+        {"targa",     OUTPUT_TGA      },
+        {"hdr",       OUTPUT_HDR      },
+        {"jpg",       OUTPUT_JPG      },
+        {"jpeg",      OUTPUT_JPG      },
+        {"ff",        OUTPUT_FF       },
+        {"farbfeld",  OUTPUT_FF       },
+        {NULL,        0               }
+};
+
+const struct format_string comments[] = {
+        {"'#' (hash) and ' ' (space)",                OUTPUT_TEXT     },
+        {"Uses HTML tables",                          OUTPUT_HTML     },
+        {"Comma-separated values",                    OUTPUT_CSV      },
+        {"1 character per module",                    OUTPUT_UNICODE  },
+        {"1 character per 2x2 modules",               OUTPUT_UNICODE2X},
+        {"8 bits per module",                         OUTPUT_RAW_BYTE },
+        {"1 bit per module (left-most module = MSb)", OUTPUT_RAW_BIT  },
+        {NULL,                                        0               }
+};
+
 bool parse_output_format(const char *str, enum output_format *format) {
 	if (!str || !*str) return false;
-	if (MATCH(str, "text") || MATCH(str, "txt") || MATCH(str, "t")) {
-		*format = OUTPUT_TEXT;
-	} else if (MATCH(str, "html") || MATCH(str, "h") || MATCH(str, "htm")) {
-		*format = OUTPUT_HTML;
-	} else if (MATCH(str, "unicode") || MATCH(str, "u")) {
-		*format = OUTPUT_UNICODE;
-	} else if (MATCH(str, "unicode2x") || MATCH(str, "u2x")) {
-		*format = OUTPUT_UNICODE2X;
-	} else if (MATCH(str, "png")) {
-		*format = OUTPUT_PNG;
-	} else if (MATCH(str, "bmp")) {
-		*format = OUTPUT_BMP;
-	} else if (MATCH(str, "tga") || MATCH(str, "targa")) {
-		*format = OUTPUT_TGA;
-	} else if (MATCH(str, "hdr")) {
-		*format = OUTPUT_HDR;
-	} else if (MATCH(str, "jpg") || MATCH(str, "jpeg")) {
-		*format = OUTPUT_JPG;
-	} else if (MATCH(str, "ff") || MATCH(str, "farbfeld")) {
-		*format = OUTPUT_FF;
-	} else {
-		return false;
+	for (const struct format_string *fmt = output_formats; fmt->name; ++fmt) {
+		if (MATCH(str, fmt->name)) {
+			*format = fmt->format;
+			return true;
+		}
 	}
-	return true;
+	return false;
 }
 
 enum parse_color_reason parse_color_fallback(const char *str, enum output_format format, struct color *color, struct color fallback) {
