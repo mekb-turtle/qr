@@ -212,7 +212,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 
 			// newline
 			if (opt.format == OUTPUT_HTML)
-				PRINT("</tr>\n");
+				PRINT("</tr>");
 			else
 				PRINT("\n");
 
@@ -220,7 +220,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 		}
 		if (opt.format == OUTPUT_HTML) {
 			// HTML footer
-			PRINT("</table>\n");
+			PRINT("</table>");
 			PRINT("</body></html>\n");
 		}
 	}

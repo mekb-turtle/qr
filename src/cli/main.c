@@ -169,24 +169,25 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (optind == argc) {
-		eprintf("No text specified\n");
-		return 1;
-	}
 	if (optind != argc - 1 || invalid) {
-	invalid_syntax:
 		eprintf("Invalid usage, try --help\n");
 		return 1;
 	}
 
+	if (optind == argc) {
+		eprintf("No text specified\n");
+		invalid = true;
+	}
+
 	bool is_stdout = !opt_output || strcmp(opt_output, "-") == 0;
+	bool format_invalid = false;
 
 	// parse all options
 
 	if (opt_format) {
 		if (!parse_output_format(opt_format, &format)) {
 			eprintf("Invalid output format\n");
-			return 1;
+			format_invalid = invalid = true;
 		}
 	} else {
 		format = OUTPUT_TEXT;
@@ -195,7 +196,7 @@ int main(int argc, char *argv[]) {
 			const char *ext = strrchr(opt_output, '.');
 			if (!ext || !parse_output_format(ext + 1, &format)) {
 				eprintf("No output format specified\n");
-				return 1;
+				format_invalid = invalid = true;
 			}
 		}
 	}
@@ -203,7 +204,7 @@ int main(int argc, char *argv[]) {
 	if (opt_module) {
 		if (!parse_u8(opt_module, &module_size, NULL) || module_size < 1) {
 			eprintf("Invalid module size, should be at least 1\n");
-			return 1;
+			invalid = true;
 		}
 	} else {
 		module_size = format & OUTPUT_IS_IMAGE ? MODULE_SIZE_IMAGE_DEFAULT : MODULE_SIZE_TEXT_DEFAULT;
@@ -212,7 +213,7 @@ int main(int argc, char *argv[]) {
 	if (opt_quiet_zone) {
 		if (!parse_u8(opt_quiet_zone, &quiet_zone, NULL)) {
 			eprintf("Invalid quiet zone size\n");
-			return 1;
+			invalid = true;
 		}
 	} else {
 		quiet_zone = QUIET_ZONE_DEFAULT;
@@ -221,7 +222,7 @@ int main(int argc, char *argv[]) {
 	if (opt_ecl) {
 		if (!parse_ecl(opt_ecl, &ecl)) {
 			eprintf("Invalid error correction level\n");
-			return 1;
+			invalid = true;
 		}
 	} else {
 		ecl = QR_ECL_LOW;
@@ -235,6 +236,7 @@ int main(int argc, char *argv[]) {
 	if (opt_version && !MATCH(opt_version, "auto")) {
 		if (!parse_u8(opt_version, &version, NULL) || version < QR_VERSION_MIN || version > QR_VERSION_MAX) {
 			eprintf("Invalid version, should be between 1-40 inclusive or 'auto'\n");
+			invalid = true;
 		}
 	}
 
@@ -242,25 +244,32 @@ int main(int argc, char *argv[]) {
 	if (opt_mask && !MATCH(opt_mask, "auto")) {
 		if (!parse_u8(opt_mask, &mask, NULL) || mask > QR_MASK_MAX) {
 			eprintf("Invalid mask value, should be between 0-7 inclusive\n");
-			return 1;
+			invalid = true;
 		}
 	}
 
 	enum parse_color_reason reason;
 
-	reason = parse_color_fallback(opt_background, format, &bg, (struct color){255, 255, 255, 255});
-	print_color_reason(reason);
-	if (reason != COLOR_OK) return 1;
+	if (!format_invalid) {
+		reason = parse_color_fallback(opt_background, format, &bg, (struct color){255, 255, 255, 255});
+		print_color_reason(reason);
+		if (reason != COLOR_OK) invalid = true;
 
-	reason = parse_color_fallback(opt_foreground, format, &fg, (struct color){0, 0, 0, 255});
-	print_color_reason(reason);
-	if (reason != COLOR_OK) return 1;
+		reason = parse_color_fallback(opt_foreground, format, &fg, (struct color){0, 0, 0, 255});
+		print_color_reason(reason);
+		if (reason != COLOR_OK) invalid = true;
+	}
 
 	if (opt_encoding) {
-		if (!parse_encoding(opt_encoding, &encoding)) goto invalid_syntax;
+		if (!parse_encoding(opt_encoding, &encoding)) {
+			eprintf("Invalid encoding\n");
+			invalid = true;
+		}
 	} else {
 		encoding = QR_MODE_AUTO;
 	}
+
+	if (invalid) return 1;
 
 	struct qr_alloc alloc = QR_ALLOC(malloc, realloc, free);
 
