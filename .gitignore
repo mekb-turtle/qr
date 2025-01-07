@@ -6,3 +6,6 @@ out/
 .idea/
 .vs/
 .vscode/
+out
+*.out
+gmon.out

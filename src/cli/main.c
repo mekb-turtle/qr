@@ -109,29 +109,35 @@ int main(int argc, char *argv[]) {
 			case 'l':
 				printf("Supported formats:\n");
 				const struct format_string *prev = NULL, *fmt;
+
+				// find longest pretty name
+				int max_pretty_name = 0;
+				for (const struct format_string *fmt = formats; fmt->arg_names; ++fmt) {
+					if (!fmt->pretty_name) continue;
+					size_t len = strlen(fmt->pretty_name);
+					if (len > INT_MAX) len = INT_MAX;
+					if ((int) len > max_pretty_name) max_pretty_name = len;
+				}
+
 				printf("Text:\n");
-				for (fmt = output_formats;; ++fmt) {
-					if (!fmt->name || !prev || prev->format != fmt->format) {
-						if (prev) {
-							for (const struct format_string *cmt = comments; cmt->name; ++cmt) {
-								if (cmt->format != prev->format) continue;
-								// print comment for this filetype
-								printf("\n     %s", cmt->name);
-								break;
-							}
-							printf("\n");
-							if (!fmt->name) break; // end of list
-							// print header for next format type if different
-							if (OUTPUT_IS_BINARY(fmt->format) && !OUTPUT_IS_BINARY(prev->format)) printf("Binary:\n");
-							if (OUTPUT_IS_IMAGE(fmt->format) && !OUTPUT_IS_IMAGE(prev->format)) printf("Image:\n");
-						}
-						// begin new line
-						printf(" - %s", fmt->name);
-						prev = fmt;
-					} else {
-						// continue line with same format
-						printf(", %s", fmt->name);
+				for (fmt = formats; fmt->arg_names; prev = fmt, ++fmt) {
+					if (prev) {
+						// print header for new format type
+						if (OUTPUT_IS_BINARY(fmt->format) && !OUTPUT_IS_BINARY(prev->format)) printf("Binary:\n");
+						if (OUTPUT_IS_IMAGE(fmt->format) && !OUTPUT_IS_IMAGE(prev->format)) printf("Image:\n");
 					}
+
+					printf(" - ");
+
+					// print pretty name
+					if (fmt->pretty_name) printf("%-*s : ", max_pretty_name, fmt->pretty_name);
+
+					// print arg names
+					for (const char *const *arg = fmt->arg_names; *arg; ++arg) {
+						if (arg != fmt->arg_names) printf(", ");
+						printf("%s", *arg);
+					}
+					printf("\n");
 				}
 				return 0;
 			default:

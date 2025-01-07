@@ -16,9 +16,10 @@
 #undef PARSE_FUNC
 
 extern const struct format_string {
-	const char *name;
 	enum output_format format;
-} output_formats[], comments[];
+	const char *const *arg_names;
+	const char *pretty_name;
+} formats[];
 
 bool parse_output_format(const char *str, enum output_format *format);
 

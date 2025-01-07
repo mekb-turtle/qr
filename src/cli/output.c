@@ -17,8 +17,127 @@
 		ptr = NULL;                  \
 	}
 
-void write_data(void *context, void *data, int size) {
+static void write_data(void *context, void *data, int size) {
 	fwrite(data, 1, size, (FILE *) context);
+}
+
+static void write_bit(FILE *fp, bool bit, uint8_t *byte, uint8_t *bit_index, bool from_left) {
+	if (from_left) {
+		if (bit) *byte |= 0x80 >> *bit_index;
+	} else {
+		if (bit) *byte |= 1 << *bit_index;
+	}
+	(*bit_index)++;
+	if (*bit_index == 8) {
+		fputc(*byte, fp);
+		*byte = 0;
+		*bit_index = 0;
+	}
+}
+
+// loops over bitmap, calling callback for each pixel
+// callback should write module_size pixels
+static bool loop_bitmap(struct qr_bitmap bitmap, struct output_options opt, bool (*callback)(bool bit, bool quiet, struct qr_pos pos, FILE *fp, void *data), FILE *fp, void *data) {
+	bool bg = opt.invert, fg = !bg;
+
+	struct qr_pos pos, repeat;
+
+#define LOOP(var, max) \
+	for (var = 0; var < max; var++)
+
+#define V_QUIET_LOOP()                                                \
+	LOOP(pos.y, opt.quiet_zone) {                                     \
+		LOOP(repeat.y, opt.module_size) {                             \
+			LOOP(pos.x, opt.quiet_zone * 2 + bitmap.size) {           \
+				if (!callback(bg, true, pos, fp, data)) return false; \
+			}                                                         \
+		}                                                             \
+	}
+
+	V_QUIET_LOOP(); // loop top quiet zone
+
+	LOOP(pos.y, bitmap.size) { // loop bitmap
+		LOOP(repeat.y, opt.module_size) {
+			LOOP(pos.x, opt.quiet_zone) { // loop left quiet zone
+				if (!callback(bg, true, pos, fp, data)) return false;
+			}
+
+			LOOP(pos.x, bitmap.size) { // loop bitmap
+				if (!callback(qr_bitmap_read(bitmap, pos) ? fg : bg, false, pos, fp, data)) return false;
+			}
+
+			LOOP(pos.x, opt.quiet_zone) { // loop right quiet zone
+				if (!callback(bg, true, pos, fp, data)) return false;
+			}
+		}
+	}
+
+	V_QUIET_LOOP(); // loop bottom quiet zone
+
+#undef LOOP
+#undef V_QUIET_LOOP
+
+	return true;
+}
+
+static bool output_bitmap_read(struct qr_bitmap bitmap, struct qr_pos pos, struct output_options opt) {
+	bool bg = opt.invert, fg = !bg;
+	qr_t quiet_size = opt.quiet_zone * opt.module_size;
+	qr_t bitmap_size = bitmap.size * opt.module_size;
+
+	// check if in quiet zone
+	if (pos.x < quiet_size || pos.y < quiet_size) return bg;
+	pos.x -= quiet_size;
+	pos.y -= quiet_size;
+
+	if (pos.x >= bitmap_size || pos.y >= bitmap_size) return bg;
+
+	pos.x /= opt.module_size;
+	pos.y /= opt.module_size;
+	return qr_bitmap_read(bitmap, pos) ? fg : bg;
+}
+
+struct data_raw_opt {
+	uint8_t byte, bit_index;
+	const struct output_options *opt;
+	uint8_t *modules_fg, *modules_bg;
+};
+
+static bool write_data_raw(bool bit, bool quiet, struct qr_pos pos, FILE *fp, void *data_) {
+	(void) quiet;
+	(void) pos;
+	struct data_raw_opt *data = (struct data_raw_opt *) data_;
+	qr_t times = data->opt->module_size;
+	switch (data->opt->format) {
+		case OUTPUT_RAW_BIT_LEFT:
+			for (size_t i = 0; i < times; i++)
+				write_bit(fp, bit, &data->byte, &data->bit_index, false);
+			return true;
+		case OUTPUT_RAW_BIT_RIGHT:
+			for (size_t i = 0; i < times; i++)
+				write_bit(fp, bit, &data->byte, &data->bit_index, true);
+			return true;
+		case OUTPUT_RAW_BYTE:
+			// optimize for writing bytes
+			fwrite(bit ? data->modules_fg : data->modules_bg, 1, times, fp);
+			return true;
+		default:
+			return false;
+	}
+}
+
+struct data_ff_opt {
+	uint8_t *modules_fg, *modules_bg;
+	qr_t module_size;
+};
+
+static bool write_data_ff(bool bit, bool quiet, struct qr_pos pos, FILE *fp, void *data_) {
+	(void) quiet;
+	(void) pos;
+	struct data_ff_opt *data = (struct data_ff_opt *) data_;
+	// farbfeld uses BE 16-bit values for each channel
+	fwrite(bit ? data->modules_fg : data->modules_bg, 1, data->module_size * 8, fp);
+	return true;
 }
 
 bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, const char **error) {
@@ -28,35 +147,26 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 		opt.format = OUTPUT_UNICODE;
 	}
 
-	struct qr_bitmap bitmap;
-	bitmap.data = NULL;
-	uint8_t *image = NULL;
+	if (opt.format == OUTPUT_HTML)
+		opt.module_size = 1; // HTML table is scaled to viewport width, so module size is useless
 
-#define ERROR(msg)         \
-	{                      \
-		*error = msg;      \
-		FREE(bitmap.data); \
-		FREE(image);       \
-		return false;      \
+#define ERROR(msg)    \
+	{                 \
+		*error = msg; \
+		return false; \
 	}
 
 	// check for overflow
 	if ((qr_t) opt.quiet_zone > QR_MAX / 2) ERROR("Quiet zone too large");
-	bitmap.size = 2 * (qr_t) opt.quiet_zone;
-	if ((qr_t) qr->output.size > QR_MAX - bitmap.size) ERROR("Bitmap too large");
-	bitmap.size += (qr_t) qr->output.size;
-	if ((qr_t) opt.module_size > QR_MAX / bitmap.size) ERROR("Module size too large");
-	bitmap.size *= (qr_t) opt.module_size;
-	if ((qr_t) bitmap.size > QR_MAX / bitmap.size) ERROR("Bitmap too large");
-
-	// construct larger output before encoding
-	bitmap.data_size = QR_DATA_SIZE(bitmap.size);
+	qr_t size = 2 * (qr_t) opt.quiet_zone;
+	if ((qr_t) qr->output.size > QR_MAX - size) ERROR("Bitmap too large");
+	size += (qr_t) qr->output.size;
+	if ((qr_t) opt.module_size > QR_MAX / size) ERROR("Module size too large");
+	size *= (qr_t) opt.module_size;
+	if ((qr_t) size > QR_MAX / size) ERROR("Bitmap too large");
 
 	// prevent stupidly large bitmaps (>1 MiB) from being created
-	if (bitmap.data_size > 0x100000) ERROR("Bitmap too large, try reducing the module size");
-
-	bitmap.data = qr->alloc.malloc(bitmap.data_size);
-	if (!bitmap.data) ERROR(ERR_ALLOC);
+	if (QR_DATA_SIZE(size) > 0x200000) ERROR("Bitmap too large, try reducing the module size");
 
 	if (opt.invert && OUTPUT_HAS_COLOR(opt.format)) {
 		// swapping colors is more efficient
@@ -66,56 +176,75 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 		opt.bg = tmp;
 	}
 
-	// clear output
-	memset(bitmap.data, opt.invert ? 0xFF : 0x00, bitmap.data_size);
-
-	// copy data
-	struct qr_pos pos;
-	for (pos.y = 0; pos.y < qr->output.size; pos.y++)
-		for (pos.x = 0; pos.x < qr->output.size; pos.x++) {
-			// skip if false and not inverted, or true and inverted
-			if (qr_bitmap_read(qr->output, pos) == false) continue;
-
-			// write the square
-			struct qr_pos off = QR_POS((pos.x + opt.quiet_zone) * opt.module_size, (pos.y + opt.quiet_zone) * opt.module_size);
-			struct qr_pos rel;
-			for (rel.y = 0; rel.y < opt.module_size; rel.y++)
-				for (rel.x = 0; rel.x < opt.module_size; rel.x++) {
-					// TODO: optimise this by using stb_image_resize2 for images and math to save memory and processing time
-					qr_bitmap_write(&bitmap, QR_POS(off.x + rel.x, off.y + rel.y), !opt.invert);
-				}
-		}
-
 	if (OUTPUT_IS_BINARY(opt.format)) {
 #define WRITE(data, len) fwrite(data, 1, len, fp)
+#define PRINT(...) fprintf(fp, __VA_ARGS__)
 		// output image
 		switch (opt.format) {
-			case OUTPUT_RAW_BIT:
-				WRITE(bitmap.data, bitmap.data_size);
-				break;
+			case OUTPUT_RAW_BIT_LEFT:
+			case OUTPUT_RAW_BIT_RIGHT:
 			case OUTPUT_RAW_BYTE: {
-				struct qr_pos pos;
-				for (pos.y = 0; pos.y < bitmap.size; pos.y++)
-					for (pos.x = 0; pos.x < bitmap.size; pos.x++)
-						fputc(qr_bitmap_read(bitmap, pos) ? 0xff : 0x00, fp);
+				struct data_raw_opt data = {0, 0, &opt, NULL, NULL};
+
+				if (opt.format == OUTPUT_RAW_BYTE) {
+					// buffer for one row of a module
+					data.modules_fg = qr->alloc.malloc(opt.module_size);
+					if (!data.modules_fg) ERROR(ERR_ALLOC);
+					data.modules_bg = qr->alloc.malloc(opt.module_size);
+					if (!data.modules_bg) {
+						FREE(data.modules_fg);
+						ERROR(ERR_ALLOC);
+					}
+
+					memset(data.modules_fg, 0x00, opt.module_size);
+					memset(data.modules_bg, 0xff, opt.module_size);
+				}
+
+				loop_bitmap(qr->output, opt, write_data_raw, fp, &data);
+				if (opt.format == OUTPUT_RAW_BYTE) break;
+
+				// write remaining bits
+				while (data.bit_index > 0) write_bit(fp, 0, &data.byte, &data.bit_index, opt.format == OUTPUT_RAW_BIT_RIGHT);
+				FREE(data.modules_fg);
+				FREE(data.modules_bg);
 				break;
 			}
 
-			case OUTPUT_FF: {
+			case OUTPUT_FARBFELD: {
 				// stbi doesn't support this format
 				// write it ourselves
 				// see https://tools.suckless.org/farbfeld/
 				WRITE("farbfeld", 8); // magic
-				const uint32_t size = TO_BE32((uint32_t) bitmap.size);
-				WRITE(&size, sizeof(size)); // width
-				WRITE(&size, sizeof(size)); // height
-				uint8_t fg[8] = {opt.fg.r, opt.fg.r, opt.fg.g, opt.fg.g, opt.fg.b, opt.fg.b, opt.fg.a, opt.fg.a};
-				uint8_t bg[8] = {opt.bg.r, opt.bg.r, opt.bg.g, opt.bg.g, opt.bg.b, opt.bg.b, opt.bg.a, opt.bg.a};
-				for (pos.y = 0; pos.y < bitmap.size; pos.y++)
-					for (pos.x = 0; pos.x < bitmap.size; pos.x++) {
-						// farbfeld uses BE 16-bit values for each channel
-						WRITE(qr_bitmap_read(bitmap, pos) ? fg : bg, 8);
-					}
+				const uint32_t size_ff = TO_BE32((uint32_t) size);
+				WRITE(&size_ff, sizeof(size_ff)); // width
+				WRITE(&size_ff, sizeof(size_ff)); // height
+
+				struct data_ff_opt data = {NULL, NULL, opt.module_size};
+
+				// buffer for one row of a module
+				data.modules_fg = qr->alloc.malloc(opt.module_size * 8);
+				if (!data.modules_fg) ERROR(ERR_ALLOC);
+				data.modules_bg = qr->alloc.malloc(opt.module_size * 8);
+				if (!data.modules_bg) {
+					FREE(data.modules_fg);
+					ERROR(ERR_ALLOC);
+				}
+
+				// prepare colors
+				for (size_t i = 0; i < opt.module_size * 8; i += 8) {
+					data.modules_fg[i] = opt.fg.r;
+					data.modules_fg[i + 1] = opt.fg.g;
+					data.modules_fg[i + 2] = opt.fg.b;
+					data.modules_fg[i + 3] = opt.fg.a;
+					data.modules_bg[i] = opt.bg.r;
+					data.modules_bg[i + 1] = opt.bg.g;
+					data.modules_bg[i + 2] = opt.bg.b;
+					data.modules_bg[i + 3] = opt.bg.a;
+				}
+
+				loop_bitmap(qr->output, opt, write_data_ff, fp, &data);
+				FREE(data.modules_fg);
+				FREE(data.modules_bg);
 				break;
 			}
 
@@ -124,56 +253,56 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 				bool is_float = OUTPUT_HAS_FLOAT(opt.format);
 
 				uint8_t bytes_per_channel = is_float ? sizeof(float) : 1;
-				const uint8_t channels = 4;
-				uint8_t bytes_per_pixel = bytes_per_channel * channels;
+#define CHANNELS (4)
+				uint8_t bytes_per_pixel = bytes_per_channel * CHANNELS;
 
-				if (bitmap.size > SIZE_MAX / bytes_per_pixel) ERROR("Bitmap too large");
-				size_t image_stride = (size_t) bitmap.size * bytes_per_pixel;
-				if (image_stride > SIZE_MAX / bitmap.size) ERROR("Bitmap too large");
-				size_t image_size = bitmap.size * image_stride;
-				image = qr->alloc.malloc(image_size);
+				if (size > SIZE_MAX / bytes_per_pixel) ERROR("Bitmap too large");
+				size_t image_stride = (size_t) size * bytes_per_pixel;
+				if (image_stride > SIZE_MAX / size) ERROR("Bitmap too large");
+				size_t image_size = size * image_stride;
+				uint8_t *image = qr->alloc.malloc(image_size);
 				if (!image) ERROR(ERR_ALLOC);
 				float *imagef = (float *) image;
 				memset(image, 0, image_size);
 
+				// prepare colors
+				uint8_t fg[CHANNELS] = {opt.fg.r, opt.fg.g, opt.fg.b, opt.fg.a},
+				        bg[CHANNELS] = {opt.bg.r, opt.bg.g, opt.bg.b, opt.bg.a};
+				float fgf[CHANNELS] = {opt.fg.r / 255.0f, opt.fg.g / 255.0f, opt.fg.b / 255.0f, opt.fg.a / 255.0f},
+				      bgf[CHANNELS] = {opt.bg.r / 255.0f, opt.bg.g / 255.0f, opt.bg.b / 255.0f, opt.bg.a / 255.0f};
+
 				// copy image data to new buffer
+				struct qr_pos pos;
 				size_t i;
-				for (i = 0, pos.y = 0; pos.y < bitmap.size; pos.y++)
-					for (pos.x = 0; pos.x < bitmap.size; pos.x++, i += channels) {
-						struct color c = qr_bitmap_read(bitmap, pos) ? opt.fg : opt.bg;
-						if (is_float) {
-							imagef[i + 0] = c.r / 255.0f;
-							imagef[i + 1] = c.g / 255.0f;
-							imagef[i + 2] = c.b / 255.0f;
-							imagef[i + 3] = c.a / 255.0f;
-						} else {
-							image[i + 0] = c.r;
-							image[i + 1] = c.g;
-							image[i + 2] = c.b;
-							image[i + 3] = c.a;
-						}
+				for (i = 0, pos.y = 0; pos.y < size; ++pos.y)
+					for (pos.x = 0; pos.x < size; ++pos.x, i += CHANNELS) {
+						bool bit = output_bitmap_read(qr->output, pos, opt);
+						if (is_float)
+							memcpy(imagef + i, bit ? fgf : bgf, sizeof(fgf));
+						else
+							memcpy(image + i, bit ? fg : bg, sizeof(fg));
 					}
-				FREE(bitmap.data);
 
 				// set alloc functions for stbi
 				output_alloc = qr->alloc;
 				switch (opt.format) {
 					case OUTPUT_PNG:
-						stbi_write_png_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image, image_stride);
+						stbi_write_png_to_func(write_data, fp, size, size, CHANNELS, image, image_stride);
 						break;
 					case OUTPUT_BMP:
-						stbi_write_bmp_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image);
+						stbi_write_bmp_to_func(write_data, fp, size, size, CHANNELS, image);
 						break;
 					case OUTPUT_TGA:
-						stbi_write_tga_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image);
+						stbi_write_tga_to_func(write_data, fp, size, size, CHANNELS, image);
 						break;
 					case OUTPUT_HDR:
-						stbi_write_hdr_to_func(write_data, fp, bitmap.size, bitmap.size, channels, (float *) image);
+						stbi_write_hdr_to_func(write_data, fp, size, size, CHANNELS, (float *) image);
 						break;
 					case OUTPUT_JPG:
-						stbi_write_jpg_to_func(write_data, fp, bitmap.size, bitmap.size, channels, image, 100);
+						stbi_write_jpg_to_func(write_data, fp, size, size, CHANNELS, image, 100);
 						break;
 					default:
+						FREE(image);
 						ERROR("Invalid image format");
 				}
 				FREE(image);
@@ -181,11 +310,10 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 			}
 		}
 	} else {
-#define PRINT(...) fprintf(fp, __VA_ARGS__)
 		// output text
 		if (opt.format == OUTPUT_HTML) {
 			// HTML header
-			float perc = 100.0 / bitmap.size;
+			float perc = 100.0 / size;
 			PRINT("<!DOCTYPE html><html><head><title>QR Code</title><style>"
 
 			      "body{"
@@ -210,12 +338,13 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 		}
 		// loop pixels
 
-		for (pos.y = 0; pos.y < bitmap.size; pos.y++) {
+		struct qr_pos pos;
+		for (pos.y = 0; pos.y < size; pos.y++) {
 			if (opt.format == OUTPUT_HTML)
 				PRINT("<tr>");
 
-			for (pos.x = 0; pos.x < bitmap.size; pos.x++) {
-				bool bit = qr_bitmap_read(bitmap, pos);
+			for (pos.x = 0; pos.x < size; pos.x++) {
+				bool bit = output_bitmap_read(qr->output, pos, opt);
 				switch (opt.format) {
 					case OUTPUT_TEXT:
 						PRINT(bit ? "##" : "  ");
@@ -232,7 +361,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 						PRINT(bit ? "\u2588\u2588" : "  ");
 						break;
 					case OUTPUT_UNICODE2X:;
-						bool bit2 = qr_bitmap_read(bitmap, QR_POS(pos.x, pos.y + 1));
+						bool bit2 = output_bitmap_read(qr->output, QR_POS(pos.x, pos.y + 1), opt);
 						PRINT(bit ? (bit2 ? "\u2588" : "\u2580") : (bit2 ? "\u2584" : " "));
 						break;
 					default:
@@ -254,8 +383,6 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 			PRINT("</body></html>\n");
 		}
 	}
-
-	FREE(bitmap.data);
 
 	return true;
 }

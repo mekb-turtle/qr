@@ -61,58 +61,37 @@ static bool parse_internal(const char *str, ull *out, char **endptr, bool is_sig
 #undef PARSE_FUNC
 
 // output formats for parsing
-const struct format_string output_formats[] = {
-        {"text",      OUTPUT_TEXT     },
-        {"txt",       OUTPUT_TEXT     },
-        {"t",         OUTPUT_TEXT     },
-        {"html",      OUTPUT_HTML     },
-        {"h",         OUTPUT_HTML     },
-        {"htm",       OUTPUT_HTML     },
-        {"csv",       OUTPUT_CSV      },
-        {"c",         OUTPUT_CSV      },
-        {"unicode",   OUTPUT_UNICODE  },
-        {"u",         OUTPUT_UNICODE  },
-        {"unicode2x", OUTPUT_UNICODE2X},
-        {"unicode2",  OUTPUT_UNICODE2X},
-        {"u2x",       OUTPUT_UNICODE2X},
-        {"u2",        OUTPUT_UNICODE2X},
+#define NAME(...) \
+	((const char *[]){__VA_ARGS__, NULL})
+const struct format_string formats[] = {
+        {OUTPUT_TEXT, NAME("text", "txt", "t"), "Text ('#'/' ')"},
+        {OUTPUT_HTML, NAME("html", "h", "htm"), "HTML table"},
+        {OUTPUT_CSV, NAME("csv", "c"), "CSV file (1/0)"},
+        {OUTPUT_UNICODE, NAME("unicode", "u", "block"), "Block characters"},
+        {OUTPUT_UNICODE2X, NAME("unicode2x", "unicode2", "u2x", "u2", "block2x", "block2"), "Block characters (2x2)"},
 
-        {"raw_byte",  OUTPUT_RAW_BYTE },
-        {"raw",       OUTPUT_RAW_BYTE },
-        {"r",         OUTPUT_RAW_BYTE },
-        {"raw_bit",   OUTPUT_RAW_BIT  },
-        {"rawbit",    OUTPUT_RAW_BIT  },
-        {"rb",        OUTPUT_RAW_BIT  },
+        {OUTPUT_RAW_BYTE, NAME("raw_byte", "raw", "r"), "Raw bytes"},
+        {OUTPUT_RAW_BIT_LEFT, NAME("raw_bit_left", "rawbitleft", "rbl"), "Raw bits (from left, no pad)"},
+        {OUTPUT_RAW_BIT_RIGHT, NAME("raw_bit_right", "rawbitright", "rbr"), "Raw bits (from right, no pad)"},
 
-        {"png",       OUTPUT_PNG      },
-        {"bmp",       OUTPUT_BMP      },
-        {"tga",       OUTPUT_TGA      },
-        {"targa",     OUTPUT_TGA      },
-        {"hdr",       OUTPUT_HDR      },
-        {"jpg",       OUTPUT_JPG      },
-        {"jpeg",      OUTPUT_JPG      },
-        {"ff",        OUTPUT_FF       },
-        {"farbfeld",  OUTPUT_FF       },
-        {NULL,        0               }
+        {OUTPUT_PNG, NAME("png"), "PNG image"},
+        {OUTPUT_BMP, NAME("bmp"), "BMP image"},
+        {OUTPUT_TGA, NAME("tga", "targa"), "TGA image"},
+        {OUTPUT_HDR, NAME("hdr"), "HDR image"},
+        {OUTPUT_JPG, NAME("jpg", "jpeg"), "JPEG image"},
+        {OUTPUT_FARBFELD, NAME("ff", "farbfeld"), "Farbfeld image"},
+        {0, NULL, NULL},
 };
-
-const struct format_string comments[] = {
-        {"'#' (hash) and ' ' (space)",                OUTPUT_TEXT     },
-        {"Uses HTML tables",                          OUTPUT_HTML     },
-        {"Comma-separated values",                    OUTPUT_CSV      },
-        {"1 character per module",                    OUTPUT_UNICODE  },
-        {"1 character per 2x2 modules",               OUTPUT_UNICODE2X},
-        {"8 bits per module",                         OUTPUT_RAW_BYTE },
-        {"1 bit per module (left-most module = MSb)", OUTPUT_RAW_BIT  },
-        {NULL,                                        0               }
-};
+#undef NAME
 
 bool parse_output_format(const char *str, enum output_format *format) {
 	if (!str || !*str) return false;
-	for (const struct format_string *fmt = output_formats; fmt->name; ++fmt) {
-		if (MATCH(str, fmt->name)) {
-			*format = fmt->format;
-			return true;
+	for (const struct format_string *fmt = formats; fmt->arg_names; ++fmt) {
+		for (const char *const *name = fmt->arg_names; *name; ++name) {
+			if (MATCH(str, *name)) {
+				*format = fmt->format;
+				return true;
+			}
 		}
 	}
 	return false;
