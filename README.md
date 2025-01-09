@@ -13,6 +13,9 @@
 ## About The Project
 This is a simple QR code generator written in C. It reads a string from arguments and outputs an image or text.
 
+> [!WARNING]
+> This project is still in development and may not be stable.
+
 ## Features
 - Mode detection (numeric, alphanumeric, binary, kanji)
 - Auto version selection
@@ -27,6 +30,7 @@ This is a simple QR code generator written in C. It reads a string from argument
 - Micro QR code (μQR)
 - More encoding modes
 - Multi-encoded QR codes
+- Proper library documentation
 
 ## Dependencies
 - `iconv` (glibc)
@@ -35,6 +39,9 @@ This is a simple QR code generator written in C. It reads a string from argument
 See `qr --help` for more information.
 
 ## Library Usage
+> [!NOTE]
+> The library does not output a quiet zone around the QR code. You should add it manually.
+
 Example program:
 ```c
 #include <string.h>
@@ -84,6 +91,8 @@ After running `meson install`, compile with
 ```sh
 gcc main.c -o main -Wl,-rpath,/usr/local/lib -lQR -I/usr/local/include
 ```
+
+Consult [`qr.h`](src/libqr/qr.h) for more information.
 
 <br />
 
