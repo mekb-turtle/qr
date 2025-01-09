@@ -177,7 +177,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 	}
 
 	if (OUTPUT_IS_BINARY(opt.format)) {
-#define WRITE(data, len) fwrite(data, 1, len, fp)
+#define WRITE(data, len) fwrite((data), 1, (len), fp)
 #define PRINT(...) fprintf(fp, __VA_ARGS__)
 		// output image
 		switch (opt.format) {
@@ -214,7 +214,9 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 				// stbi doesn't support this format
 				// write it ourselves
 				// see https://tools.suckless.org/farbfeld/
-				WRITE("farbfeld", 8); // magic
+				const uint8_t magic_ff[8] = {102, 97, 114, 98, 102, 101, 108, 100};
+				WRITE(magic_ff, 8); // magic, "farbfeld"
+				                    // using bytes since not all compilers use UTF-8
 				const uint32_t size_ff = TO_BE32((uint32_t) size);
 				WRITE(&size_ff, sizeof(size_ff)); // width
 				WRITE(&size_ff, sizeof(size_ff)); // height
@@ -232,14 +234,23 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 
 				// prepare colors
 				for (size_t i = 0; i < opt.module_size * 8; i += 8) {
-					data.modules_fg[i] = opt.fg.r;
-					data.modules_fg[i + 1] = opt.fg.g;
-					data.modules_fg[i + 2] = opt.fg.b;
-					data.modules_fg[i + 3] = opt.fg.a;
-					data.modules_bg[i] = opt.bg.r;
-					data.modules_bg[i + 1] = opt.bg.g;
-					data.modules_bg[i + 2] = opt.bg.b;
-					data.modules_bg[i + 3] = opt.bg.a;
+					data.modules_fg[i + 0] = opt.fg.r;
+					data.modules_fg[i + 1] = opt.fg.r;
+					data.modules_fg[i + 2] = opt.fg.g;
+					data.modules_fg[i + 3] = opt.fg.g;
+					data.modules_fg[i + 4] = opt.fg.b;
+					data.modules_fg[i + 5] = opt.fg.b;
+					data.modules_fg[i + 6] = opt.fg.a;
+					data.modules_fg[i + 7] = opt.fg.a;
+
+					data.modules_bg[i + 0] = opt.bg.r;
+					data.modules_bg[i + 1] = opt.bg.r;
+					data.modules_bg[i + 2] = opt.bg.g;
+					data.modules_bg[i + 3] = opt.bg.g;
+					data.modules_bg[i + 4] = opt.bg.b;
+					data.modules_bg[i + 5] = opt.bg.b;
+					data.modules_bg[i + 6] = opt.bg.a;
+					data.modules_bg[i + 7] = opt.bg.a;
 				}
 
 				loop_bitmap(qr->output, opt, write_data_ff, fp, &data);
@@ -296,7 +307,7 @@ bool write_output(FILE *fp, const struct qr *qr, struct output_options opt, cons
 						stbi_write_tga_to_func(write_data, fp, size, size, CHANNELS, image);
 						break;
 					case OUTPUT_HDR:
-						stbi_write_hdr_to_func(write_data, fp, size, size, CHANNELS, (float *) image);
+						stbi_write_hdr_to_func(write_data, fp, size, size, CHANNELS, imagef);
 						break;
 					case OUTPUT_JPG:
 						stbi_write_jpg_to_func(write_data, fp, size, size, CHANNELS, image, 100);
