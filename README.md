@@ -25,6 +25,8 @@ This is a simple QR code generator written in C. It reads a string from argument
   - Image: PNG, BMP, Targa, HDR, JPEG, [farbfeld](https://tools.suckless.org/farbfeld/)
   - Text (using Unicode block characters)
   - HTML
+  - Raw bytes/bits
+  - See `qr --formats` for more information
 
 ## Future plans
 - Micro QR code (μQR)
