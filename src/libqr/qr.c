@@ -168,7 +168,7 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 	}
 
 	// boost the error correction level if wanted
-	if (!(qr->ecl & QR_ECL_NO_BOOST)) {
+	if (qr->ecl & QR_ECL_BOOST) {
 		while (QR_ECL(qr->ecl) < QR_ECL_HIGH && QR_CHARACTER_CAPACITY(qr->version, qr->ecl + 1, qr->mode) >= qr->char_count) {
 			++qr->ecl;
 		}
@@ -278,7 +278,7 @@ bool qr_encode_utf8(struct qr *qr, struct qr_alloc alloc, const void *data__, en
 	return true;
 }
 
-bool qr_prepare_data(struct qr *qr, const char **error) {
+bool qr_encode_prepare(struct qr *qr, const char **error) {
 #define ERROR(msg)           \
 	{                        \
 		*error = msg;        \

@@ -256,7 +256,7 @@ int main(int argc, char *argv[]) {
 	} else
 		ecl = QR_ECL_MEDIUM;
 
-	if (!boost_ecl) ecl |= QR_ECL_NO_BOOST;
+	if (boost_ecl) ecl |= QR_ECL_BOOST;
 
 	version = QR_VERSION_AUTO;
 	if (opt_version && !MATCH(opt_version, "auto")) {
@@ -338,7 +338,7 @@ int main(int argc, char *argv[]) {
 		goto close_exit;
 	}
 
-	if (!qr_prepare_data(&qr, &error)) {
+	if (!qr_encode_prepare(&qr, &error)) {
 		PRINT_ERROR("Failed to prepare QR code data");
 		goto qr_exit;
 	}

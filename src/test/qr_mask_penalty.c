@@ -26,9 +26,9 @@ int main() {
 		ASSERT(qr.char_count, ==, 11, FMT_INT, match = false);
 		if (!match) ret = 1;
 		else {
-			result = qr_prepare_data(&qr, &error);
+			result = qr_encode_prepare(&qr, &error);
 			if (!result) {
-				FAIL("qr_prepare_data");
+				FAIL("qr_encode_prepare");
 				if (error) printf("error: %s\n", error);
 				ret = 1;
 			} else {

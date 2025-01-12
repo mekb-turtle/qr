@@ -66,7 +66,7 @@ int main() {
 		return 1;
 	}
 
-	if (!qr_prepare_data(&qr, &error)) {
+	if (!qr_encode_prepare(&qr, &error)) {
 		eprintf("Failed to prepare QR code data: %s\n", error);
 		return 1;
 	}
