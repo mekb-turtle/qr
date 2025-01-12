@@ -112,7 +112,7 @@ int main() {
 		}
 
 		qr_close(&qr);
-		bool result = qr_encode_utf8(&qr, alloc, "test string...", QR_MODE_AUTO, version, QR_ECL_LOW | QR_ECL_NO_BOOST, &error);
+		bool result = qr_encode_utf8(&qr, alloc, "test string...", QR_MODE_AUTO, version, QR_ECL_LOW, &error);
 		if (!result) {
 			ret = 1;
 			alloc.free(test_bitmap.data);
@@ -128,8 +128,8 @@ int main() {
 			ret = 1;
 			goto next;
 		}
-		if (!qr_prepare_data(&qr, &error)) {
-			FAIL("qr_prepare_data: %s", error);
+		if (!qr_encode_prepare(&qr, &error)) {
+			FAIL("qr_encode_prepare: %s", error);
 			ret = 1;
 			goto next;
 		}
